@@ -5,8 +5,10 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/rainbow96bear/planet_server/user_service/config"
-	"github.com/rainbow96bear/planet_server/user_service/logger"
+	"github.com/gin-gonic/gin"
+	"github.com/rainbow96bear/planet_user_server/config"
+	"github.com/rainbow96bear/planet_user_server/logger"
+	"github.com/rainbow96bear/planet_user_server/router"
 )
 
 // go build -ldflags "-X main.Mode=prod -X main.Version=1.0.0 -X main.GitCommit=$(git rev-parse HEAD)" -o user_service_prod .
@@ -29,9 +31,20 @@ func init() {
 	fmt.Printf("user_service Start \nVersion : %s \nGit Commit : %s\n", Version, GitCommit)
 	fmt.Printf("Build Mode : %s\n", Mode)
 	config.InitConfig(Mode)
-	logger.SetLevel(config.AppConfig.LogLevel)
+	logger.SetLevel(config.LOG_LEVEL)
 }
 
 func main() {
+	// kakaoOauth := &kakao.Provider{
+	// 	RestApiKey:   config.KAKAO_REST_API_KEY,
+	// 	RedirectUrl:  config.KAKAO_REDIRECT_URI,
+	// 	ClientSecret: config.KAKAO_CLIENT_SECRET,
+	// }
 
+	r := router.SetupRouter(
+		func(r *gin.Engine) { router.RegisterProfileRoutes(r) },
+		// router.RegisterPostRoutes,
+	)
+	authServerPort := fmt.Sprintf(":%s", config.PORT)
+	r.Run(authServerPort)
 }
