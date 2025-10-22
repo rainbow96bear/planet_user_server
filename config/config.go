@@ -28,6 +28,12 @@ func InitConfig(mode string) {
 	LOG_LEVEL = getInt16("LOG_LEVEL")
 	DB_GRPC_SERVER_ADDR = getString("DB_GRPC_SERVER_ADDR")
 	JWT_SECRET_KEY = getString("JWT_SECRET_KEY")
+
+	DB_USER  = getString("DB_USER")
+	DB_PASSWORD  = getString("DB_PASSWORD")
+	DB_HOST  = getString("DB_HOST")
+	DB_PORT  = getString("DB_PORT")
+	DB_NAME  = getString("DB_NAME")
 }
 
 func getString(envName string) string {

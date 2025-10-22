@@ -9,13 +9,7 @@ import (
 	"github.com/rainbow96bear/planet_user_server/config"
 )
 
-func GetUuidByAccessToken(c *gin.Context) (string, error) {
-	tokenStr, err := c.Cookie("access_token")
-	if err != nil {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "missing access token"})
-		return "", err
-	}
-
+func GetUuidByAccessToken(tokenStr string) (string, error) {
 	token, err := jwt.Parse(tokenStr, func(token *jwt.Token) (interface{}, error) {
 		return []byte(config.JWT_SECRET_KEY), nil
 	})
@@ -37,5 +31,4 @@ func GetUuidByAccessToken(c *gin.Context) (string, error) {
 	}
 
 	return userUuid, nil
-
 }

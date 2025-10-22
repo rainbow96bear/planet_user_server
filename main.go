@@ -35,16 +35,31 @@ func init() {
 }
 
 func main() {
-	// kakaoOauth := &kakao.Provider{
-	// 	RestApiKey:   config.KAKAO_REST_API_KEY,
-	// 	RedirectUrl:  config.KAKAO_REDIRECT_URI,
-	// 	ClientSecret: config.KAKAO_CLIENT_SECRET,
-	// }
+
+	db, err := userInit.InitDB()
+	if err != nil {
+		logger.Errorf("failed to initialize database: %s", err.Error())
+		os.Exit(1)
+	}
+	defer db.Close()
+
+	profileRepo := &repository.ProfileRepo{
+		DB: db,
+	}
+
+	profileService := &service.ProfileService{
+		ProfileRepo:   profileRepo,
+	}
+
+	profileHandler := &handler.ProfileHandler{
+		ProfileService:  profileService,
+	}
 
 	r := router.SetupRouter(
-		func(r *gin.Engine) { router.RegisterProfileRoutes(r) },
-		// router.RegisterPostRoutes,
+		func(r *gin.Engine) { routes.RegisterProfileRoutes(r, profileHandler) },
 	)
+
 	authServerPort := fmt.Sprintf(":%s", config.PORT)
+
 	r.Run(authServerPort)
 }
