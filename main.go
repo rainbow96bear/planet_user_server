@@ -4,11 +4,15 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"planet_utils/pkg/logger"
 
 	"github.com/gin-gonic/gin"
 	"github.com/rainbow96bear/planet_user_server/config"
-	"github.com/rainbow96bear/planet_user_server/logger"
+	"github.com/rainbow96bear/planet_user_server/internal/handler"
+	"github.com/rainbow96bear/planet_user_server/internal/routes"
+	"github.com/rainbow96bear/planet_user_server/internal/service"
 	"github.com/rainbow96bear/planet_user_server/router"
+	"github.com/rainbow96bear/planet_user_server/userInit"
 )
 
 // go build -ldflags "-X main.Mode=prod -X main.Version=1.0.0 -X main.GitCommit=$(git rev-parse HEAD)" -o user_service_prod .
@@ -43,16 +47,16 @@ func main() {
 	}
 	defer db.Close()
 
-	profileRepo := &repository.ProfileRepo{
+	profileRepo := &reposi.ProfileRepo{
 		DB: db,
 	}
 
 	profileService := &service.ProfileService{
-		ProfileRepo:   profileRepo,
+		ProfileRepo: profileRepo,
 	}
 
 	profileHandler := &handler.ProfileHandler{
-		ProfileService:  profileService,
+		ProfileService: profileService,
 	}
 
 	r := router.SetupRouter(

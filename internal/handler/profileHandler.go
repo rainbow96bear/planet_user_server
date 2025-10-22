@@ -1,24 +1,20 @@
 package handler
 
 import (
-	"fmt"
 	"net/http"
 	"planet_utils/pkg/logger"
-	"strconv"
 
 	"github.com/gin-gonic/gin"
-	"github.com/rainbow96bear/planet_auth_server/config"
-	"github.com/rainbow96bear/planet_auth_server/dto"
-	"github.com/rainbow96bear/planet_auth_server/external/oauthClient"
-	"github.com/rainbow96bear/planet_auth_server/internal/service"
+	"github.com/rainbow96bear/planet_user_server/dto"
+	"github.com/rainbow96bear/planet_user_server/internal/service"
 )
 
 type ProfileHandler struct {
 	ProfileService *service.ProfileService
-	AuthService *service.AuthService
+	AuthService    *service.AuthService
 }
 
-func (h *ProfileHandler)GetProfileInfo(c *gin.Context) {
+func (h *ProfileHandler) GetProfileInfo(c *gin.Context) {
 	logger.Infof("start to get profile")
 	defer logger.Infof("end to get profile")
 	ctx := c.Request.Context()
@@ -46,6 +42,18 @@ func (h *ProfileHandler) UpdateProfile(c *gin.Context) {
 	defer logger.Infof("end to update profile")
 
 	ctx := c.Request.Context()
+
+	authUuidValue, exists := c.Get("userUuid")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
+		return
+	}
+
+	authUuid, ok := authUuidValue.(string)
+	if !ok {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "invalid user uuid type"})
+		return
+	}
 
 	profileInfo := &dto.ProfileInfo{}
 

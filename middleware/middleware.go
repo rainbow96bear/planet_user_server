@@ -4,11 +4,8 @@ import (
 	"net/http"
 
 	"github.com/gin-gonic/gin"
-	"github.com/golang-jwt/jwt"
-	pb "github.com/rainbow96bear/planet_proto"
-	"github.com/rainbow96bear/planet_user_server/config"
-	"github.com/rainbow96bear/planet_user_server/grpc_client"
-	"github.com/rainbow96bear/planet_user_server/logger"
+	"github.com/rainbow96bear/planet_user_server/internal/service"
+	"github.com/rainbow96bear/planet_user_server/utils"
 )
 
 func AuthMiddleware(authService *service.AuthService) gin.HandlerFunc {
@@ -21,7 +18,7 @@ func AuthMiddleware(authService *service.AuthService) gin.HandlerFunc {
 			return
 		}
 
-		userUuid, err :=utils.GetUuidByAccessToken(tokenStr)
+		userUuid, err := utils.GetUuidByAccessToken(tokenStr)
 		if err != nil {
 			c.JSON(http.StatusUnauthorized, gin.H{"error": err.Error()})
 			c.Abort()

@@ -3,11 +3,9 @@ package repository
 import (
 	"context"
 	"database/sql"
-	"fmt"
-	"planet_utils/model"
 	"planet_utils/pkg/logger"
 
-	"github.com/rainbow96bear/planet_auth_server/dto"
+	"github.com/rainbow96bear/planet_user_server/dto"
 )
 
 type UsersRepository struct {
@@ -30,7 +28,7 @@ func (r *UsersRepository) GetUserUuidByNickname(ctx context.Context, nickname st
 	return userUuid, nil
 }
 
-func (r *UsersRepository)GetProfileInfo(ctx context.Context, nickname string) (*dto.ProfileInfo, error){
+func (r *UsersRepository) GetProfileInfo(ctx context.Context, nickname string) (*dto.ProfileInfo, error) {
 	logger.Infof("start to get profile info : %s", nickname)
 	defer logger.Infof("end to get profile info: %s", nickname)
 
@@ -61,7 +59,6 @@ func (r *UsersRepository) UpdateProfile(ctx context.Context, profile *dto.Profil
 		profile.ProfileImage,
 		profile.Bio,
 		profile.Email,
-		profile.UserUuid,
 	)
 	if err != nil {
 		logger.Errorf("failed to update profile info ERR[%s]", err.Error())
