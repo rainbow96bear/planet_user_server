@@ -3,9 +3,9 @@ package repository
 import (
 	"context"
 	"database/sql"
-	"planet_utils/pkg/logger"
 
 	"github.com/rainbow96bear/planet_user_server/dto"
+	"github.com/rainbow96bear/planet_utils/pkg/logger"
 )
 
 type UsersRepository struct {
@@ -59,6 +59,7 @@ func (r *UsersRepository) UpdateProfile(ctx context.Context, profile *dto.Profil
 		profile.ProfileImage,
 		profile.Bio,
 		profile.Email,
+		profile.UserUuid,
 	)
 	if err != nil {
 		logger.Errorf("failed to update profile info ERR[%s]", err.Error())

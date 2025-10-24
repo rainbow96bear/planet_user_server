@@ -6,7 +6,7 @@ import (
 	"strconv"
 
 	"github.com/joho/godotenv"
-	"github.com/rainbow96bear/planet_auth_server/logger"
+	"github.com/rainbow96bear/planet_utils/pkg/logger"
 )
 
 func InitConfig(mode string) {
@@ -29,11 +29,11 @@ func InitConfig(mode string) {
 	DB_GRPC_SERVER_ADDR = getString("DB_GRPC_SERVER_ADDR")
 	JWT_SECRET_KEY = getString("JWT_SECRET_KEY")
 
-	DB_USER  = getString("DB_USER")
-	DB_PASSWORD  = getString("DB_PASSWORD")
-	DB_HOST  = getString("DB_HOST")
-	DB_PORT  = getString("DB_PORT")
-	DB_NAME  = getString("DB_NAME")
+	DB_USER = getString("DB_USER")
+	DB_PASSWORD = getString("DB_PASSWORD")
+	DB_HOST = getString("DB_HOST")
+	DB_PORT = getString("DB_PORT")
+	DB_NAME = getString("DB_NAME")
 }
 
 func getString(envName string) string {

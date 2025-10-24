@@ -4,15 +4,14 @@ import (
 	"flag"
 	"fmt"
 	"os"
-	"planet_utils/pkg/logger"
 
 	"github.com/gin-gonic/gin"
 	"github.com/rainbow96bear/planet_user_server/config"
-	"github.com/rainbow96bear/planet_user_server/internal/handler"
-	"github.com/rainbow96bear/planet_user_server/internal/routes"
-	"github.com/rainbow96bear/planet_user_server/internal/service"
-	"github.com/rainbow96bear/planet_user_server/router"
+	"github.com/rainbow96bear/planet_user_server/internal/bootstrap"
+	"github.com/rainbow96bear/planet_user_server/internal/router"
+	"github.com/rainbow96bear/planet_user_server/middleware"
 	"github.com/rainbow96bear/planet_user_server/userInit"
+	"github.com/rainbow96bear/planet_utils/pkg/logger"
 )
 
 // go build -ldflags "-X main.Mode=prod -X main.Version=1.0.0 -X main.GitCommit=$(git rev-parse HEAD)" -o user_service_prod .
@@ -47,21 +46,15 @@ func main() {
 	}
 	defer db.Close()
 
-	profileRepo := &reposi.ProfileRepo{
-		DB: db,
-	}
+	handlers := bootstrap.InitHandlers(db)
 
-	profileService := &service.ProfileService{
-		ProfileRepo: profileRepo,
-	}
+	r := router.SetupRouter(func(r *gin.Engine) {
+		for _, h := range handlers {
+			h.RegisterRoutes(r)
+		}
+	})
 
-	profileHandler := &handler.ProfileHandler{
-		ProfileService: profileService,
-	}
-
-	r := router.SetupRouter(
-		func(r *gin.Engine) { routes.RegisterProfileRoutes(r, profileHandler) },
-	)
+	r.Use(middleware.LoggingMiddleware())
 
 	authServerPort := fmt.Sprintf(":%s", config.PORT)
 

@@ -12,7 +12,7 @@ type ProfileService struct {
 	UsersRepo *repository.UsersRepository
 }
 
-func (s *ProfileService) GetProfilInfo(ctx context.Context, nickname string) (*dto.ProfileInfo, error) {
+func (s *ProfileService) GetProfileInfo(ctx context.Context, nickname string) (*dto.ProfileInfo, error) {
 	profile, err := s.UsersRepo.GetProfileInfo(ctx, nickname)
 	if err != nil {
 		return nil, err
