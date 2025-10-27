@@ -44,7 +44,7 @@ func (h *ProfileHandler) GetProfileInfo(c *gin.Context) {
 
 	profileInfo, err := h.ProfileService.GetProfileInfo(ctx, nickname)
 	if err != nil {
-		logger.Warnf("fail to get %s's profile info", nickname)
+		logger.Warnf("fail to get %s's profile info ERR[%s]", nickname, err.Error())
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}

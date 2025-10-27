@@ -19,8 +19,16 @@ func (s *ProfileService) GetProfileInfo(ctx context.Context, nickname string) (*
 	}
 
 	if profile == nil {
-		return nil, fmt.Errorf("fail to get profile info ERR[%s]", err.Error())
+		return nil, fmt.Errorf("fail to get profile info")
 	}
+
+	followerCount, followingCount, err := s.UsersRepo.GetFollowCount(ctx, nickname)
+	if err != nil {
+		return nil, err
+	}
+
+	profile.FollowerCount = followerCount
+	profile.FollowingCount = followingCount
 
 	return profile, nil
 }
