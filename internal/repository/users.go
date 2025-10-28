@@ -3,6 +3,7 @@ package repository
 import (
 	"context"
 	"database/sql"
+	"fmt"
 
 	"github.com/rainbow96bear/planet_user_server/dto"
 	"github.com/rainbow96bear/planet_utils/pkg/logger"
@@ -50,26 +51,6 @@ func (r *UsersRepository) GetProfileInfo(ctx context.Context, nickname string) (
 	return profileInfo, nil
 }
 
-func (r *UsersRepository) GetFollowCount(ctx context.Context, nickname string) (int, int, error) {
-	query := `
-		SELECT 
-			(SELECT COUNT(*) FROM follows f 
-			 JOIN users u ON f.following_uuid = u.user_uuid 
-			 WHERE u.nickname = ?) AS follower_count,
-			(SELECT COUNT(*) FROM follows f 
-			 JOIN users u ON f.follower_uuid = u.user_uuid 
-			 WHERE u.nickname = ?) AS following_count;
-	`
-
-	var followerCount, followingCount int
-	err := r.DB.QueryRowContext(ctx, query, nickname, nickname).Scan(&followerCount, &followingCount)
-	if err != nil {
-		return 0, 0, err
-	}
-
-	return followerCount, followingCount, nil
-}
-
 func (r *UsersRepository) UpdateProfile(ctx context.Context, profile *dto.ProfileInfo) error {
 	logger.Infof("start to update profile info: %s", profile.Nickname)
 	defer logger.Infof("end to update profile info: %s", profile.Nickname)
@@ -93,4 +74,65 @@ func (r *UsersRepository) UpdateProfile(ctx context.Context, profile *dto.Profil
 	}
 
 	return nil
+}
+
+func (r *UsersRepository) IncrementFollowCountsTx(ctx context.Context, tx *sql.Tx, followerUuid, followeeUuid string) error {
+	_, err := tx.ExecContext(ctx,
+		"UPDATE users SET following_count = following_count + 1 WHERE uuid = ?",
+		followerUuid,
+	)
+	if err != nil {
+		return fmt.Errorf("failed to increment following_count: %w", err)
+	}
+
+	_, err = tx.ExecContext(ctx,
+		"UPDATE users SET follow_count = follow_count + 1 WHERE uuid = ?",
+		followeeUuid,
+	)
+	if err != nil {
+		return fmt.Errorf("failed to increment follow_count: %w", err)
+	}
+
+	return nil
+}
+
+func (r *UsersRepository) DecrementFollowCountsTx(ctx context.Context, tx *sql.Tx, followerUuid, followeeUuid string) error {
+	// following_count 감소 (0 미만 방지)
+	followerQuery := `
+		UPDATE users 
+		SET following_count = CASE WHEN following_count > 0 THEN following_count - 1 ELSE 0 END 
+		WHERE uuid = ?
+		`
+	_, err := tx.ExecContext(ctx, followerQuery, followerUuid)
+	if err != nil {
+		return fmt.Errorf("failed to decrement following_count: %w", err)
+	}
+
+	// follow_count 감소 (0 미만 방지)
+	followeeQuery := `
+		UPDATE users 
+		SET follow_count = CASE WHEN follow_count > 0 THEN follow_count - 1 ELSE 0 END 
+		WHERE uuid = ?
+		`
+	_, err = tx.ExecContext(ctx, followeeQuery, followeeUuid)
+	if err != nil {
+		return fmt.Errorf("failed to decrement follow_count: %w", err)
+	}
+
+	return nil
+}
+
+func (r *UsersRepository) GetFollowCounts(ctx context.Context, userUuid string) (uint, uint, error) {
+	logger.Infof("start to get follow counts: %s", userUuid)
+	defer logger.Infof("end to  get follow counts: %s", userUuid)
+
+	var followCount, followingCount uint
+	query := `SELECT follow_count, following_count FROM users WHERE user_uuid = ?`
+	err := r.DB.QueryRowContext(ctx, query, userUuid).Scan(&followCount, &followingCount)
+
+	if err != nil {
+		return 0, 0, err
+	}
+
+	return followCount, followingCount, nil
 }

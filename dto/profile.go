@@ -15,8 +15,8 @@ type ProfileInfo struct {
 	ProfileImage   string  `json:"profile_image"`
 	Bio            *string `json:"bio,omitempty"`
 	Email          *string `json:"email,omitempty"`
-	FollowerCount  int     `json:"followerCount"`
-	FollowingCount int     `json:"followingCount"`
+	FollowerCount  uint    `json:"followerCount"`
+	FollowingCount uint    `json:"followingCount"`
 }
 
 // 조회용 응답 DTO
@@ -25,15 +25,15 @@ type ProfileResponse struct {
 	Bio            *string `json:"bio,omitempty"`
 	Email          *string `json:"email,omitempty"`
 	ProfileImage   string  `json:"profile_image"`
-	FollowerCount  int     `json:"followerCount"`
-	FollowingCount int     `json:"followingCount"`
+	FollowerCount  uint    `json:"followerCount"`
+	FollowingCount uint    `json:"followingCount"`
 }
 
 // 팔로워/팔로잉 수용 DTO
 type FollowCountDTO struct {
 	UserUuid       string `json:"user_uuid"`
-	FollowerCount  int    `json:"follower_count"`
-	FollowingCount int    `json:"following_count"`
+	FollowerCount  uint   `json:"follower_count"`
+	FollowingCount uint   `json:"following_count"`
 }
 
 // 요청 DTO → 내부 DTO 변환

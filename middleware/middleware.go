@@ -2,11 +2,13 @@ package middleware
 
 import (
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/rainbow96bear/planet_auth_server/config"
 	"github.com/rainbow96bear/planet_user_server/internal/service"
-	"github.com/rainbow96bear/planet_user_server/utils"
+	"github.com/rainbow96bear/planet_utils/pkg/jwt"
 	"github.com/rainbow96bear/planet_utils/pkg/logger"
 )
 
@@ -29,21 +31,41 @@ func LoggingMiddleware() gin.HandlerFunc {
 
 func AuthMiddleware(authService *service.AuthService) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		// 쿠키에서 access_token 가져오기
-		tokenStr, err := c.Cookie("access_token")
-		if err != nil {
-			c.JSON(http.StatusUnauthorized, gin.H{"error": "missing access token"})
+		// 1️⃣ Authorization 헤더에서 access token 가져오기
+		authHeader := c.GetHeader("Authorization")
+		if authHeader == "" {
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "missing Authorization header"})
 			c.Abort()
 			return
 		}
 
-		userUuid, err := utils.GetUuidByAccessToken(tokenStr)
-		if err != nil {
-			c.JSON(http.StatusUnauthorized, gin.H{"error": err.Error()})
+		parts := strings.SplitN(authHeader, " ", 2)
+		if len(parts) != 2 || strings.ToLower(parts[0]) != "bearer" {
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid Authorization header format"})
 			c.Abort()
 			return
 		}
 
+		tokenStr := parts[1]
+
+		// 2️⃣ JWT 검증 및 payload 추출
+		claims, err := jwt.ParseAndVerifyJWT(tokenStr, config.JWT_SECRET_KEY)
+		if err != nil {
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid or expired token"})
+			c.Abort()
+			return
+		}
+
+		// claims에서 userUuid와 nickname 가져오기
+		userUuid, ok1 := claims["userUuid"].(string)
+		nicknameFromToken, ok2 := claims["nickname"].(string)
+		if !ok1 || !ok2 {
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid token claims"})
+			c.Abort()
+			return
+		}
+
+		// 3️⃣ 요청 URL의 nickname과 JWT nickname 비교
 		nickname := c.Param("nickname")
 		if nickname == "" {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "missing nickname param"})
@@ -51,23 +73,15 @@ func AuthMiddleware(authService *service.AuthService) gin.HandlerFunc {
 			return
 		}
 
-		ctx := c.Request.Context()
-		// 두 값을 비교
-		ok, err := authService.VerifyUser(ctx, nickname, userUuid)
-		if err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-			c.Abort()
-			return
-		}
-
-		if !ok {
+		if nickname != nicknameFromToken {
 			c.JSON(http.StatusForbidden, gin.H{"error": "unauthorized user"})
 			c.Abort()
 			return
 		}
 
-		// 검증 성공 시 userUuid를 Context에 저장
+		// 검증 성공 → Context에 저장
 		c.Set("userUuid", userUuid)
+		c.Set("nickname", nicknameFromToken)
 		c.Next()
 	}
 }

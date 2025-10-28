@@ -22,7 +22,12 @@ func (s *ProfileService) GetProfileInfo(ctx context.Context, nickname string) (*
 		return nil, fmt.Errorf("fail to get profile info")
 	}
 
-	followerCount, followingCount, err := s.UsersRepo.GetFollowCount(ctx, nickname)
+	userUuid, err := s.UsersRepo.GetUserUuidByNickname(ctx, nickname)
+	if err != nil {
+		return nil, err
+	}
+
+	followerCount, followingCount, err := s.UsersRepo.GetFollowCounts(ctx, userUuid)
 	if err != nil {
 		return nil, err
 	}
@@ -40,4 +45,16 @@ func (s *ProfileService) UpdateProfile(ctx context.Context, profile *dto.Profile
 	}
 
 	return nil
+}
+
+func (s *ProfileService) GetUserUuidByNickname(ctx context.Context, nickname string) (string, error) {
+	return s.UsersRepo.GetUserUuidByNickname(ctx, nickname)
+}
+
+func (s *ProfileService) GetFollowCounts(ctx context.Context, userUuid string) (uint, uint, error) {
+	followerCounts, followeeCounts, err := s.UsersRepo.GetFollowCounts(ctx, userUuid)
+	if err != nil {
+		return 0, 0, err
+	}
+	return followerCounts, followeeCounts, nil
 }

@@ -7,18 +7,21 @@ import (
 	"github.com/rainbow96bear/planet_user_server/dto"
 	"github.com/rainbow96bear/planet_user_server/internal/service"
 	"github.com/rainbow96bear/planet_user_server/middleware"
+	"github.com/rainbow96bear/planet_user_server/utils"
 	"github.com/rainbow96bear/planet_utils/pkg/logger"
 )
 
 type ProfileHandler struct {
 	ProfileService *service.ProfileService
 	AuthService    *service.AuthService
+	FollowService  *service.FollowService
 }
 
-func NewProfileHandler(profileService *service.ProfileService, authService *service.AuthService) *ProfileHandler {
+func NewProfileHandler(profileService *service.ProfileService, authService *service.AuthService, followService *service.FollowService) *ProfileHandler {
 	return &ProfileHandler{
 		ProfileService: profileService,
 		AuthService:    authService,
+		FollowService:  followService,
 	}
 }
 
@@ -60,17 +63,11 @@ func (h *ProfileHandler) UpdateProfile(c *gin.Context) {
 
 	ctx := c.Request.Context()
 
-	authUuidValue, exists := c.Get("userUuid")
-	if !exists {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
-		return
+	authUuid, err := utils.GetUserUuid(c)
+	if err != nil {
+		logger.Errorf(err.Error())
 	}
 
-	authUuid, ok := authUuidValue.(string)
-	if !ok {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "invalid user uuid type"})
-		return
-	}
 	profileUpdateRequest := &dto.ProfileUpdateRequest{}
 
 	if err := c.ShouldBindJSON(profileUpdateRequest); err != nil {
