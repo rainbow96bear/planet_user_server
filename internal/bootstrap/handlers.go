@@ -13,15 +13,22 @@ func InitHandlers(db *sql.DB) map[string]router.RouteRegistrar {
 	userRepo := &repository.UsersRepository{DB: db}
 	followRepo := &repository.FollowsRepository{DB: db}
 
-	profileService := &service.ProfileService{UsersRepo: userRepo}
-	authService := &service.AuthService{UsersRepo: userRepo}
+	profileService := &service.ProfileService{
+		UsersRepo: userRepo,
+	}
+
 	followService := &service.FollowService{
 		UsersRepo:   userRepo,
 		FollowsRepo: followRepo,
 	}
 
+	settingService := &service.SettingService{
+		UsersRepo: userRepo,
+	}
+
 	return map[string]router.RouteRegistrar{
-		"profile": handler.NewProfileHandler(profileService, authService, followService),
-		"user":    handler.NewUserHandler(profileService, authService, followService),
+		"profile": handler.NewProfileHandler(profileService, followService),
+		"user":    handler.NewUserHandler(profileService, followService),
+		"setting": handler.NewSettingHandler(settingService),
 	}
 }

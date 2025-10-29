@@ -36,6 +36,10 @@ type FollowCountDTO struct {
 	FollowingCount uint   `json:"following_count"`
 }
 
+type Theme struct {
+	Theme string `json:"theme"`
+}
+
 // 요청 DTO → 내부 DTO 변환
 func ToProfileInfo(req *ProfileUpdateRequest, userUuid string) *ProfileInfo {
 	return &ProfileInfo{

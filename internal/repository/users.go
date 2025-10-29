@@ -136,3 +136,32 @@ func (r *UsersRepository) GetFollowCounts(ctx context.Context, userUuid string) 
 
 	return followCount, followingCount, nil
 }
+
+func (r *UsersRepository) GetTheme(ctx context.Context, userUuid string) (string, error) {
+	logger.Infof("start to get theme uuid : %s", userUuid)
+	defer logger.Infof("end to get theme uuid : %s", userUuid)
+
+	var theme string
+	query := `SELECT theme FROM users WHERE user_uuid = ?`
+	err := r.DB.QueryRowContext(ctx, query, userUuid).Scan(&theme)
+
+	if err != nil {
+		return "", err
+	}
+
+	return theme, nil
+}
+
+func (r *UsersRepository) SetTheme(ctx context.Context, userUuid, theme string) error {
+	logger.Infof("start to set theme : %s, uuid : %s", theme, userUuid)
+	defer logger.Infof("end to set theme : %s, uuid : %s", theme, userUuid)
+
+	query := `UPDATE users SET theme = ? WHERE uuid = ?`
+	_, err := r.DB.ExecContext(ctx, query, theme, userUuid)
+	if err != nil {
+		logger.Errorf("failed to update theme for uuid %s: %v", userUuid, err)
+		return err
+	}
+
+	return nil
+}

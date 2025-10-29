@@ -6,8 +6,7 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
-	"github.com/rainbow96bear/planet_auth_server/config"
-	"github.com/rainbow96bear/planet_user_server/internal/service"
+	"github.com/rainbow96bear/planet_user_server/config"
 	"github.com/rainbow96bear/planet_utils/pkg/jwt"
 	"github.com/rainbow96bear/planet_utils/pkg/logger"
 )
@@ -29,9 +28,8 @@ func LoggingMiddleware() gin.HandlerFunc {
 	}
 }
 
-func AuthMiddleware(authService *service.AuthService) gin.HandlerFunc {
+func AuthMiddleware() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		// 1️⃣ Authorization 헤더에서 access token 가져오기
 		authHeader := c.GetHeader("Authorization")
 		if authHeader == "" {
 			c.JSON(http.StatusUnauthorized, gin.H{"error": "missing Authorization header"})
@@ -48,40 +46,28 @@ func AuthMiddleware(authService *service.AuthService) gin.HandlerFunc {
 
 		tokenStr := parts[1]
 
-		// 2️⃣ JWT 검증 및 payload 추출
+		// JWT 검증
 		claims, err := jwt.ParseAndVerifyJWT(tokenStr, config.JWT_SECRET_KEY)
 		if err != nil {
+			logger.Errorf("invalid token: %v", err)
 			c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid or expired token"})
 			c.Abort()
 			return
 		}
 
-		// claims에서 userUuid와 nickname 가져오기
+		// 필수 claim 확인
 		userUuid, ok1 := claims["userUuid"].(string)
-		nicknameFromToken, ok2 := claims["nickname"].(string)
+		nickname, ok2 := claims["nickname"].(string)
 		if !ok1 || !ok2 {
 			c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid token claims"})
 			c.Abort()
 			return
 		}
 
-		// 3️⃣ 요청 URL의 nickname과 JWT nickname 비교
-		nickname := c.Param("nickname")
-		if nickname == "" {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "missing nickname param"})
-			c.Abort()
-			return
-		}
-
-		if nickname != nicknameFromToken {
-			c.JSON(http.StatusForbidden, gin.H{"error": "unauthorized user"})
-			c.Abort()
-			return
-		}
-
-		// 검증 성공 → Context에 저장
+		// Context에 저장 (핸들러에서 사용 가능)
 		c.Set("userUuid", userUuid)
-		c.Set("nickname", nicknameFromToken)
+		c.Set("nickname", nickname)
+
 		c.Next()
 	}
 }

@@ -13,14 +13,12 @@ import (
 
 type ProfileHandler struct {
 	ProfileService *service.ProfileService
-	AuthService    *service.AuthService
 	FollowService  *service.FollowService
 }
 
-func NewProfileHandler(profileService *service.ProfileService, authService *service.AuthService, followService *service.FollowService) *ProfileHandler {
+func NewProfileHandler(profileService *service.ProfileService, followService *service.FollowService) *ProfileHandler {
 	return &ProfileHandler{
 		ProfileService: profileService,
-		AuthService:    authService,
 		FollowService:  followService,
 	}
 }
@@ -28,7 +26,7 @@ func NewProfileHandler(profileService *service.ProfileService, authService *serv
 func (h *ProfileHandler) RegisterRoutes(r *gin.Engine) {
 	profileGroup := r.Group("/profile")
 	profileGroup.GET("/:nickname", h.GetProfileInfo)
-	profileGroup.Use(middleware.AuthMiddleware(h.AuthService))
+	profileGroup.Use(middleware.AuthMiddleware())
 	{
 		profileGroup.PATCH("/:nickname", h.UpdateProfile)
 	}

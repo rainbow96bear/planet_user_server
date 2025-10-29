@@ -12,25 +12,23 @@ import (
 
 type UserHandler struct {
 	ProfileService *service.ProfileService
-	AuthService    *service.AuthService
 	FollowService  *service.FollowService
 }
 
-func NewUserHandler(profileService *service.ProfileService, authService *service.AuthService, followService *service.FollowService) *UserHandler {
+func NewUserHandler(profileService *service.ProfileService, followService *service.FollowService) *UserHandler {
 	return &UserHandler{
 		ProfileService: profileService,
-		AuthService:    authService,
 		FollowService:  followService,
 	}
 }
 
 func (h *UserHandler) RegisterRoutes(r *gin.Engine) {
-	userGroup := r.Group("/users")
-	userGroup.Use(middleware.AuthMiddleware(h.AuthService))
+	usersGroup := r.Group("/users")
+	usersGroup.Use(middleware.AuthMiddleware())
 	{
-		userGroup.POST("/:nickname/follow", h.Follow)
-		userGroup.DELETE("/:nickname/follow", h.Unfollow)
-		userGroup.GET("/:nickname/follow-status", h.IsFollow)
+		usersGroup.POST("/:nickname/follow", h.Follow)
+		usersGroup.DELETE("/:nickname/follow", h.Unfollow)
+		usersGroup.GET("/:nickname/follow-status", h.IsFollow)
 	}
 }
 
