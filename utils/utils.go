@@ -22,7 +22,7 @@ func GetUuidByAccessToken(tokenStr string) (string, error) {
 		return "", fmt.Errorf("fail to claims")
 	}
 
-	userUuid, ok := claims["userUuid"].(string)
+	userUuid, ok := claims["user_uuid"].(string)
 	if !ok {
 		return "", fmt.Errorf("fail to get uuid from jwt")
 	}
@@ -31,7 +31,7 @@ func GetUuidByAccessToken(tokenStr string) (string, error) {
 }
 
 func GetUserUuid(c *gin.Context) (string, error) {
-	authUuidValue, exists := c.Get("userUuid")
+	authUuidValue, exists := c.Get("user_uuid")
 	if !exists {
 		err := fmt.Errorf("unauthorized")
 		c.JSON(http.StatusUnauthorized, gin.H{"error": err.Error()})

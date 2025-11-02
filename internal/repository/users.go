@@ -51,6 +51,28 @@ func (r *UsersRepository) GetProfileInfo(ctx context.Context, nickname string) (
 	return profileInfo, nil
 }
 
+func (r *UsersRepository) GetMyProfileInfo(ctx context.Context, userUuid string) (*dto.ProfileInfo, error) {
+	logger.Infof("start to get profile info user uuid : %s", userUuid)
+	defer logger.Infof("end to get profile info user uuid : %s", userUuid)
+
+	query := `SELECT user_uuid, nickname, profile_image, bio, email FROM users WHERE user_uuid = ?`
+
+	profileInfo := &dto.ProfileInfo{}
+	err := r.DB.QueryRowContext(ctx, query, userUuid).Scan(
+		&profileInfo.UserUuid,
+		&profileInfo.Nickname,
+		&profileInfo.ProfileImage,
+		&profileInfo.Bio,
+		&profileInfo.Email,
+	)
+	if err != nil {
+		logger.Errorf("failed to get profile info ERR[%s]", err.Error())
+		return nil, err
+	}
+
+	return profileInfo, nil
+}
+
 func (r *UsersRepository) UpdateProfile(ctx context.Context, profile *dto.ProfileInfo) error {
 	logger.Infof("start to update profile info: %s", profile.Nickname)
 	defer logger.Infof("end to update profile info: %s", profile.Nickname)
@@ -86,11 +108,11 @@ func (r *UsersRepository) IncrementFollowCountsTx(ctx context.Context, tx *sql.T
 	}
 
 	_, err = tx.ExecContext(ctx,
-		"UPDATE users SET follow_count = follow_count + 1 WHERE uuid = ?",
+		"UPDATE users SET follower_count = follower_count + 1 WHERE uuid = ?",
 		followeeUuid,
 	)
 	if err != nil {
-		return fmt.Errorf("failed to increment follow_count: %w", err)
+		return fmt.Errorf("failed to increment follower_count: %w", err)
 	}
 
 	return nil
@@ -108,15 +130,15 @@ func (r *UsersRepository) DecrementFollowCountsTx(ctx context.Context, tx *sql.T
 		return fmt.Errorf("failed to decrement following_count: %w", err)
 	}
 
-	// follow_count 감소 (0 미만 방지)
+	// follower_count 감소 (0 미만 방지)
 	followeeQuery := `
 		UPDATE users 
-		SET follow_count = CASE WHEN follow_count > 0 THEN follow_count - 1 ELSE 0 END 
+		SET follower_count = CASE WHEN follower_count > 0 THEN follower_count - 1 ELSE 0 END 
 		WHERE uuid = ?
 		`
 	_, err = tx.ExecContext(ctx, followeeQuery, followeeUuid)
 	if err != nil {
-		return fmt.Errorf("failed to decrement follow_count: %w", err)
+		return fmt.Errorf("failed to decrement follower_count: %w", err)
 	}
 
 	return nil
@@ -127,7 +149,7 @@ func (r *UsersRepository) GetFollowCounts(ctx context.Context, userUuid string) 
 	defer logger.Infof("end to  get follow counts: %s", userUuid)
 
 	var followCount, followingCount uint
-	query := `SELECT follow_count, following_count FROM users WHERE user_uuid = ?`
+	query := `SELECT follower_count, following_count FROM users WHERE user_uuid = ?`
 	err := r.DB.QueryRowContext(ctx, query, userUuid).Scan(&followCount, &followingCount)
 
 	if err != nil {
@@ -138,8 +160,8 @@ func (r *UsersRepository) GetFollowCounts(ctx context.Context, userUuid string) 
 }
 
 func (r *UsersRepository) GetTheme(ctx context.Context, userUuid string) (string, error) {
-	logger.Infof("start to get theme uuid : %s", userUuid)
-	defer logger.Infof("end to get theme uuid : %s", userUuid)
+	logger.Infof("start to get theme user_uuid : %s", userUuid)
+	defer logger.Infof("end to get theme user_uuid : %s", userUuid)
 
 	var theme string
 	query := `SELECT theme FROM users WHERE user_uuid = ?`
@@ -153,13 +175,13 @@ func (r *UsersRepository) GetTheme(ctx context.Context, userUuid string) (string
 }
 
 func (r *UsersRepository) SetTheme(ctx context.Context, userUuid, theme string) error {
-	logger.Infof("start to set theme : %s, uuid : %s", theme, userUuid)
-	defer logger.Infof("end to set theme : %s, uuid : %s", theme, userUuid)
+	logger.Infof("start to set theme : %s, user_uuid : %s", theme, userUuid)
+	defer logger.Infof("end to set theme : %s, user_uuid : %s", theme, userUuid)
 
-	query := `UPDATE users SET theme = ? WHERE uuid = ?`
+	query := `UPDATE users SET theme = ? WHERE user_uuid = ?`
 	_, err := r.DB.ExecContext(ctx, query, theme, userUuid)
 	if err != nil {
-		logger.Errorf("failed to update theme for uuid %s: %v", userUuid, err)
+		logger.Errorf("failed to update theme for user_uuid %s: %v", userUuid, err)
 		return err
 	}
 

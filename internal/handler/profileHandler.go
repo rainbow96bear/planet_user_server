@@ -28,6 +28,7 @@ func (h *ProfileHandler) RegisterRoutes(r *gin.Engine) {
 	profileGroup.GET("/:nickname", h.GetProfileInfo)
 	profileGroup.Use(middleware.AuthMiddleware())
 	{
+		profileGroup.GET("/me", h.GetMyProfileInfo)
 		profileGroup.PATCH("/:nickname", h.UpdateProfile)
 	}
 }
@@ -50,9 +51,7 @@ func (h *ProfileHandler) GetProfileInfo(c *gin.Context) {
 		return
 	}
 	profileResponse := *dto.ToProfileResponse(profileInfo)
-	c.JSON(http.StatusOK, gin.H{
-		"profile": profileResponse,
-	})
+	c.JSON(http.StatusOK, profileResponse)
 }
 
 func (h *ProfileHandler) UpdateProfile(c *gin.Context) {
@@ -82,7 +81,25 @@ func (h *ProfileHandler) UpdateProfile(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{
-		"profile": profileInfo,
-	})
+	c.JSON(http.StatusOK, profileInfo)
+}
+
+func (h *ProfileHandler) GetMyProfileInfo(c *gin.Context) {
+	logger.Infof("start to get my profile")
+	defer logger.Infof("end to get my profile")
+	ctx := c.Request.Context()
+
+	authUuid, err := utils.GetUserUuid(c)
+	if err != nil {
+		logger.Errorf(err.Error())
+	}
+
+	profileInfo, err := h.ProfileService.GetMyProfileInfo(ctx, authUuid)
+	if err != nil {
+		logger.Warnf("fail to get %s's profile info ERR[%s]", authUuid, err.Error())
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	profileResponse := *dto.ToProfileResponse(profileInfo)
+	c.JSON(http.StatusOK, profileResponse)
 }

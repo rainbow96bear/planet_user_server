@@ -38,6 +38,19 @@ func (s *ProfileService) GetProfileInfo(ctx context.Context, nickname string) (*
 	return profile, nil
 }
 
+func (s *ProfileService) GetMyProfileInfo(ctx context.Context, userUuid string) (*dto.ProfileInfo, error) {
+	profile, err := s.UsersRepo.GetMyProfileInfo(ctx, userUuid)
+	if err != nil {
+		return nil, err
+	}
+
+	if profile == nil {
+		return nil, fmt.Errorf("fail to get profile info")
+	}
+
+	return profile, nil
+}
+
 func (s *ProfileService) UpdateProfile(ctx context.Context, profile *dto.ProfileInfo) error {
 	err := s.UsersRepo.UpdateProfile(ctx, profile)
 	if err != nil {
