@@ -12,6 +12,7 @@ import (
 func InitHandlers(db *sql.DB) map[string]router.RouteRegistrar {
 	userRepo := &repository.UsersRepository{DB: db}
 	followRepo := &repository.FollowsRepository{DB: db}
+	calendarRepo := &repository.CalendarRepository{DB: db}
 
 	profileService := &service.ProfileService{
 		UsersRepo: userRepo,
@@ -26,9 +27,15 @@ func InitHandlers(db *sql.DB) map[string]router.RouteRegistrar {
 		UsersRepo: userRepo,
 	}
 
+	calendarService := &service.CalendarService{
+		CalendarRepo: calendarRepo,
+		UsersRepo:    userRepo,
+	}
+
 	return map[string]router.RouteRegistrar{
-		"profile": handler.NewProfileHandler(profileService, followService),
-		"user":    handler.NewUserHandler(profileService, followService),
-		"setting": handler.NewSettingHandler(settingService),
+		"profile":  handler.NewProfileHandler(profileService, followService),
+		"user":     handler.NewUserHandler(profileService, followService),
+		"setting":  handler.NewSettingHandler(settingService),
+		"calendar": handler.NewCalendarHandler(calendarService),
 	}
 }
