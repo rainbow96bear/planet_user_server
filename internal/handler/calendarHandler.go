@@ -16,6 +16,7 @@ import (
 type CalendarHandler struct {
 	CalendarService *service.CalendarService
 	FollowService   *service.FollowService
+	ProfileService  *service.ProfileService
 	// 추후 이미지 업로드 서비스 추가
 	// ImageUploader dto.ImageUploader
 }
@@ -41,6 +42,56 @@ func (h *CalendarHandler) RegisterRoutes(r *gin.Engine) {
 		calendarGroup.PUT("/:eventId", h.UpdateCalendar)
 		calendarGroup.DELETE("/:eventId", h.DeleteCalendar)
 	}
+}
+
+func (h *CalendarHandler) GetUserCalendar(c *gin.Context) {
+	logger.Infof("start to get user calendar")
+	defer logger.Infof("end to get user calendar")
+
+	ctx := c.Request.Context()
+	nickname := c.Param("nickname")
+	if nickname == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "nickname is required"})
+		return
+	}
+
+	// 기본적으로 공개 일정만 조회
+	visibilityLevels := []string{"public"}
+
+	// 토큰 확인
+	userUUID, err := utils.GetUserUuid(c)
+	if err == nil && userUUID != "" {
+		logger.Infof("authenticated user: %s", userUUID)
+
+		// 내 프로필인지 확인
+		followeeUUID, err := h.ProfileService.GetUserUuidByNickname(ctx, nickname)
+		if err != nil {
+			logger.Warnf("failed to get user uuid by nickname: %v", err)
+		} else if followeeUUID == userUUID {
+			// 본인 일정일 경우, 모든 visibility 허용
+			visibilityLevels = []string{"public", "friends", "private"}
+		} else {
+			// 친구(팔로우) 여부 확인
+			isFollow, err := h.FollowService.IsFollow(ctx, userUUID, followeeUUID)
+			if err != nil {
+				logger.Warnf("failed to check follow status: %v", err)
+			} else if isFollow {
+				visibilityLevels = append(visibilityLevels, "friends")
+			}
+		}
+	} else {
+		logger.Infof("unauthenticated request: only public calendars will be returned")
+	}
+
+	// 일정 조회
+	calendars, err := h.CalendarService.GetCalendarByNicknameAndVisibility(ctx, nickname, visibilityLevels)
+	if err != nil {
+		logger.Errorf("failed to load user calendar: %v", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to load calendar"})
+		return
+	}
+
+	c.JSON(http.StatusOK, calendars)
 }
 
 // GET /calendar

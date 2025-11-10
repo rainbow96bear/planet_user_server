@@ -71,3 +71,13 @@ func (s *ProfileService) GetFollowCounts(ctx context.Context, userUuid string) (
 	}
 	return followerCounts, followeeCounts, nil
 }
+
+func (s *ProfileService) IsMyProfile(ctx context.Context, userUUID string, nickname string) (bool, error) {
+	profile, err := s.UsersRepo.GetMyProfileInfo(ctx, userUUID)
+	if err != nil {
+		return false, err
+	}
+
+	// 닉네임 일치 여부 확인
+	return profile.Nickname == nickname, nil
+}

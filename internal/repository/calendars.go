@@ -3,39 +3,40 @@ package repository
 import (
 	"context"
 	"database/sql"
+	"fmt"
+	"time"
 
-	"github.com/rainbow96bear/planet_user_server/dto"
+	"github.com/rainbow96bear/planet_utils/model"
 )
 
 type CalendarRepository struct {
 	DB *sql.DB
 }
 
-// =====================
-// Calendar 조회
-// =====================
+// -------------------- 조회 --------------------
 
-// GetCalendarByID 특정 일정 조회 (단건)
-func (r *CalendarRepository) GetCalendarByID(ctx context.Context, eventId int64) (*dto.CalendarInfo, error) {
+// GetCalendarByID 단건 조회
+func (r *CalendarRepository) GetCalendarByID(ctx context.Context, eventID uint64) (*model.Calendar, error) {
 	query := `
-		SELECT id, user_id, title, description, emoji, start_at, end_at, visibility, image_url
+		SELECT id, user_id, title, description, emoji, start_at, end_at, visibility, image_url, created_at, updated_at
 		FROM calendar_events
 		WHERE id = ?
 	`
-	c := &dto.CalendarInfo{}
 
-	err := r.DB.QueryRowContext(ctx, query, eventId).Scan(
-		&c.EventID,
-		&c.UserUUID,
-		&c.Title,
-		&c.Description,
-		&c.Emoji,
-		&c.StartAt,
-		&c.EndAt,
-		&c.Visibility,
-		&c.ImageURL,
+	cal := &model.Calendar{}
+	err := r.DB.QueryRowContext(ctx, query, eventID).Scan(
+		&cal.ID,
+		&cal.UserUUID,
+		&cal.Title,
+		&cal.Description,
+		&cal.Emoji,
+		&cal.StartAt,
+		&cal.EndAt,
+		&cal.Visibility,
+		&cal.ImageURL,
+		&cal.CreatedAt,
+		&cal.UpdatedAt,
 	)
-
 	if err != nil {
 		if err == sql.ErrNoRows {
 			return nil, nil
@@ -43,101 +44,88 @@ func (r *CalendarRepository) GetCalendarByID(ctx context.Context, eventId int64)
 		return nil, err
 	}
 
-	// 할 일 조회
-	todos, err := r.getTodosByEventID(ctx, eventId)
+	// Todos 조회
+	todos, err := r.getTodosByEventID(ctx, int64(cal.ID))
 	if err != nil {
 		return nil, err
 	}
-	c.Todos = todos
-
-	return c, nil
+	cal.Todos = todos
+	return cal, nil
 }
 
-// GetCalendarsByUserUuid 내 일정 목록
-func (r *CalendarRepository) GetCalendarsByUserUuid(ctx context.Context, userUuid string) ([]*dto.CalendarInfo, error) {
+// GetCalendarsByUserUuid 특정 사용자 전체 일정
+func (r *CalendarRepository) GetCalendarsByUserUuid(ctx context.Context, userUUID string) ([]*model.Calendar, error) {
 	query := `
-		SELECT id, user_id, title, description, emoji, start_at, end_at, visibility, image_url
+		SELECT id, user_id, title, description, emoji, start_at, end_at, visibility, image_url, created_at, updated_at
 		FROM calendar_events
 		WHERE user_id = ?
 		ORDER BY start_at DESC
 	`
-	rows, err := r.DB.QueryContext(ctx, query, userUuid)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-
-	var calendars []*dto.CalendarInfo
-	for rows.Next() {
-		c := &dto.CalendarInfo{}
-		if err := rows.Scan(
-			&c.EventID,
-			&c.UserUUID,
-			&c.Title,
-			&c.Description,
-			&c.Emoji,
-			&c.StartAt,
-			&c.EndAt,
-			&c.Visibility,
-			&c.ImageURL,
-		); err != nil {
-			return nil, err
-		}
-
-		todos, err := r.getTodosByEventID(ctx, c.EventID)
-		if err != nil {
-			return nil, err
-		}
-		c.Todos = todos
-
-		calendars = append(calendars, c)
-	}
-	return calendars, nil
+	return r.getCalendarList(ctx, query, userUUID)
 }
 
-// =====================
-// Calendar 생성 / 수정 / 삭제
-// =====================
+// GetPublicCalendarsByUserUuid 공개 일정 조회
+func (r *CalendarRepository) GetPublicCalendarsByUserUuid(ctx context.Context, userUUID string) ([]*model.Calendar, error) {
+	query := `
+		SELECT id, user_id, title, description, emoji, start_at, end_at, visibility, image_url, created_at, updated_at
+		FROM calendar_events
+		WHERE user_id = ? AND visibility = 'public'
+		ORDER BY start_at DESC
+	`
+	return r.getCalendarList(ctx, query, userUUID)
+}
 
-// CreateCalendar 일정 생성
-func (r *CalendarRepository) CreateCalendar(ctx context.Context, calendar *dto.CalendarInfo) error {
+// GetAllPublicCalendars 전체 공개 일정
+func (r *CalendarRepository) GetAllPublicCalendars(ctx context.Context) ([]*model.Calendar, error) {
+	query := `
+		SELECT id, user_id, title, description, emoji, start_at, end_at, visibility, image_url, created_at, updated_at
+		FROM calendar_events
+		WHERE visibility = 'public'
+		ORDER BY start_at DESC
+	`
+	return r.getCalendarList(ctx, query)
+}
+
+// -------------------- 생성/수정/삭제 --------------------
+
+// CreateCalendar 새 일정 생성
+func (r *CalendarRepository) CreateCalendar(ctx context.Context, cal *model.Calendar) error {
 	tx, err := r.DB.BeginTx(ctx, nil)
 	if err != nil {
 		return err
 	}
 
-	// calendar_events 삽입
 	query := `
 		INSERT INTO calendar_events (user_id, title, description, emoji, start_at, end_at, visibility, image_url)
 		VALUES (?, ?, ?, ?, ?, ?, ?, ?)
 	`
 	result, err := tx.ExecContext(ctx, query,
-		calendar.UserUUID,
-		calendar.Title,
-		calendar.Description,
-		calendar.Emoji,
-		calendar.StartAt,
-		calendar.EndAt,
-		calendar.Visibility,
-		calendar.ImageURL,
+		cal.UserUUID,
+		cal.Title,
+		cal.Description,
+		cal.Emoji,
+		cal.StartAt,
+		cal.EndAt,
+		cal.Visibility,
+		cal.ImageURL,
 	)
 	if err != nil {
 		tx.Rollback()
 		return err
 	}
 
-	eventID, err := result.LastInsertId()
+	id, err := result.LastInsertId()
 	if err != nil {
 		tx.Rollback()
 		return err
 	}
-	calendar.EventID = eventID
+	cal.ID = uint64(id)
 
-	// todos 삽입
-	for _, t := range calendar.Todos {
+	// Todos 삽입
+	for _, t := range cal.Todos {
 		if _, err := tx.ExecContext(ctx,
 			"INSERT INTO calendar_todos (event_id, content, done) VALUES (?, ?, ?)",
-			eventID, t.Text, t.Completed,
+			cal.ID, t.Content, t.Done,
 		); err != nil {
 			tx.Rollback()
 			return err
@@ -148,7 +136,7 @@ func (r *CalendarRepository) CreateCalendar(ctx context.Context, calendar *dto.C
 }
 
 // UpdateCalendar 일정 수정
-func (r *CalendarRepository) UpdateCalendar(ctx context.Context, calendar *dto.CalendarInfo) error {
+func (r *CalendarRepository) UpdateCalendar(ctx context.Context, cal *model.Calendar) error {
 	tx, err := r.DB.BeginTx(ctx, nil)
 	if err != nil {
 		return err
@@ -156,33 +144,34 @@ func (r *CalendarRepository) UpdateCalendar(ctx context.Context, calendar *dto.C
 
 	query := `
 		UPDATE calendar_events
-		SET title=?, description=?, emoji=?, start_at=?, end_at=?, visibility=?, image_url=?
+		SET title=?, description=?, emoji=?, start_at=?, end_at=?, visibility=?, image_url=?, updated_at=?
 		WHERE id=? AND user_id=?
 	`
 	if _, err := tx.ExecContext(ctx, query,
-		calendar.Title,
-		calendar.Description,
-		calendar.Emoji,
-		calendar.StartAt,
-		calendar.EndAt,
-		calendar.Visibility,
-		calendar.ImageURL,
-		calendar.EventID,
-		calendar.UserUUID,
+		cal.Title,
+		cal.Description,
+		cal.Emoji,
+		cal.StartAt,
+		cal.EndAt,
+		cal.Visibility,
+		cal.ImageURL,
+		time.Now(),
+		cal.ID,
+		cal.UserUUID,
 	); err != nil {
 		tx.Rollback()
 		return err
 	}
 
-	// todos 삭제 후 재삽입 (간단한 방법)
-	if _, err := tx.ExecContext(ctx, "DELETE FROM calendar_todos WHERE event_id=?", calendar.EventID); err != nil {
+	// Todos 삭제 후 재삽입
+	if _, err := tx.ExecContext(ctx, "DELETE FROM calendar_todos WHERE event_id=?", cal.ID); err != nil {
 		tx.Rollback()
 		return err
 	}
-	for _, t := range calendar.Todos {
+	for _, t := range cal.Todos {
 		if _, err := tx.ExecContext(ctx,
 			"INSERT INTO calendar_todos (event_id, content, done) VALUES (?, ?, ?)",
-			calendar.EventID, t.Text, t.Completed,
+			cal.ID, t.Content, t.Done,
 		); err != nil {
 			tx.Rollback()
 			return err
@@ -193,16 +182,15 @@ func (r *CalendarRepository) UpdateCalendar(ctx context.Context, calendar *dto.C
 }
 
 // DeleteCalendar 일정 삭제
-func (r *CalendarRepository) DeleteCalendar(ctx context.Context, eventId int64) error {
-	// calendar_todos는 foreign key cascade 처리됨
-	_, err := r.DB.ExecContext(ctx, "DELETE FROM calendar_events WHERE id=?", eventId)
+func (r *CalendarRepository) DeleteCalendar(ctx context.Context, eventID uint64) error {
+	_, err := r.DB.ExecContext(ctx, "DELETE FROM calendar_events WHERE id=?", eventID)
 	return err
 }
 
-// =====================
-// Helper: Todos 조회
-// =====================
-func (r *CalendarRepository) getTodosByEventID(ctx context.Context, eventID int64) ([]dto.TodoItem, error) {
+// -------------------- Helper --------------------
+
+// Todos 조회
+func (r *CalendarRepository) getTodosByEventID(ctx context.Context, eventID int64) ([]model.Todo, error) {
 	rows, err := r.DB.QueryContext(ctx,
 		"SELECT content, done FROM calendar_todos WHERE event_id=? ORDER BY id ASC",
 		eventID,
@@ -212,10 +200,10 @@ func (r *CalendarRepository) getTodosByEventID(ctx context.Context, eventID int6
 	}
 	defer rows.Close()
 
-	var todos []dto.TodoItem
+	var todos []model.Todo
 	for rows.Next() {
-		t := dto.TodoItem{}
-		if err := rows.Scan(&t.Text, &t.Completed); err != nil {
+		t := model.Todo{}
+		if err := rows.Scan(&t.Content, &t.Done); err != nil {
 			return nil, err
 		}
 		todos = append(todos, t)
@@ -223,94 +211,76 @@ func (r *CalendarRepository) getTodosByEventID(ctx context.Context, eventID int6
 	return todos, nil
 }
 
-// =====================
-// 소유자 확인 / 공개 일정
-// =====================
-func (r *CalendarRepository) IsOwnerOfCalendar(ctx context.Context, eventId int64, userUuid string) (bool, error) {
+// 반복되는 calendar_events 조회
+func (r *CalendarRepository) getCalendarList(ctx context.Context, query string, args ...interface{}) ([]*model.Calendar, error) {
+	rows, err := r.DB.QueryContext(ctx, query, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var calendars []*model.Calendar
+	for rows.Next() {
+		c := &model.Calendar{}
+		if err := rows.Scan(
+			&c.ID,
+			&c.UserUUID,
+			&c.Title,
+			&c.Description,
+			&c.Emoji,
+			&c.StartAt,
+			&c.EndAt,
+			&c.Visibility,
+			&c.ImageURL,
+			&c.CreatedAt,
+			&c.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+
+		todos, err := r.getTodosByEventID(ctx, int64(c.ID))
+		if err != nil {
+			return nil, err
+		}
+		c.Todos = todos
+		calendars = append(calendars, c)
+	}
+	return calendars, nil
+}
+
+// 소유자 확인
+func (r *CalendarRepository) IsOwnerOfCalendar(ctx context.Context, eventID uint64, userUUID string) (bool, error) {
 	query := `SELECT COUNT(*) FROM calendar_events WHERE id = ? AND user_id = ?`
 	var count int
-	err := r.DB.QueryRowContext(ctx, query, eventId, userUuid).Scan(&count)
+	err := r.DB.QueryRowContext(ctx, query, eventID, userUUID).Scan(&count)
 	return count > 0, err
 }
 
-func (r *CalendarRepository) GetPublicCalendarsByUserUuid(ctx context.Context, userUuid string) ([]*dto.CalendarInfo, error) {
-	query := `
-		SELECT id, user_id, title, description, emoji, start_at, end_at, visibility, image_url
-		FROM calendar_events
-		WHERE user_id = ? AND visibility = 'public'
-		ORDER BY start_at DESC
-	`
-	rows, err := r.DB.QueryContext(ctx, query, userUuid)
-	if err != nil {
-		return nil, err
+// FindByNicknameAndVisibility 닉네임 + 공개/친구/개인 조회
+func (r *CalendarRepository) FindByNicknameAndVisibility(ctx context.Context, nickname string, visibilityLevels []string) ([]*model.Calendar, error) {
+	if len(visibilityLevels) == 0 {
+		return []*model.Calendar{}, nil
 	}
-	defer rows.Close()
 
-	var calendars []*dto.CalendarInfo
-	for rows.Next() {
-		c := &dto.CalendarInfo{}
-		if err := rows.Scan(
-			&c.EventID,
-			&c.UserUUID,
-			&c.Title,
-			&c.Description,
-			&c.Emoji,
-			&c.StartAt,
-			&c.EndAt,
-			&c.Visibility,
-			&c.ImageURL,
-		); err != nil {
-			return nil, err
+	placeholders := ""
+	args := make([]interface{}, 0, len(visibilityLevels)+1)
+	args = append(args, nickname)
+	for i := range visibilityLevels {
+		if i > 0 {
+			placeholders += ", "
 		}
-
-		todos, err := r.getTodosByEventID(ctx, c.EventID)
-		if err != nil {
-			return nil, err
-		}
-		c.Todos = todos
-
-		calendars = append(calendars, c)
+		placeholders += "?"
+		args = append(args, visibilityLevels[i])
 	}
-	return calendars, nil
-}
 
-func (r *CalendarRepository) GetAllPublicCalendars(ctx context.Context) ([]*dto.CalendarInfo, error) {
-	query := `
-		SELECT id, user_id, title, description, emoji, start_at, end_at, visibility, image_url
-		FROM calendar_events
-		WHERE visibility = 'public'
-		ORDER BY start_at DESC
-	`
-	rows, err := r.DB.QueryContext(ctx, query)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
+	query := fmt.Sprintf(`
+		SELECT ce.id, ce.user_id, ce.title, ce.description, ce.emoji,
+		       ce.start_at, ce.end_at, ce.visibility, ce.image_url, ce.created_at, ce.updated_at
+		FROM calendar_events AS ce
+		JOIN profiles AS p ON p.uuid = ce.user_id
+		WHERE p.nickname = ? AND ce.visibility IN (%s)
+		ORDER BY ce.start_at DESC
+	`, placeholders)
 
-	var calendars []*dto.CalendarInfo
-	for rows.Next() {
-		c := &dto.CalendarInfo{}
-		if err := rows.Scan(
-			&c.EventID,
-			&c.UserUUID,
-			&c.Title,
-			&c.Description,
-			&c.Emoji,
-			&c.StartAt,
-			&c.EndAt,
-			&c.Visibility,
-			&c.ImageURL,
-		); err != nil {
-			return nil, err
-		}
-
-		todos, err := r.getTodosByEventID(ctx, c.EventID)
-		if err != nil {
-			return nil, err
-		}
-		c.Todos = todos
-
-		calendars = append(calendars, c)
-	}
-	return calendars, nil
+	return r.getCalendarList(ctx, query, args...)
 }

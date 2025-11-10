@@ -1,87 +1,96 @@
 package dto
 
-import "mime/multipart"
+import (
+	"time"
 
-type TodoItem struct {
-	Text      string `json:"text"`
-	Completed bool   `json:"completed"`
-}
+	"github.com/rainbow96bear/planet_utils/model"
+)
 
+// CalendarInfo는 프론트엔드에 반환할 일정 정보
 type CalendarInfo struct {
-	EventID     int64      `json:"event_id"`
-	UserUUID    string     `json:"user_uuid"`
+	EventID     uint64     `json:"eventId"`  // calendar_events.id
+	UserUUID    string     `json:"userUuid"` // calendar_events.user_id
 	Title       string     `json:"title"`
 	Description string     `json:"description"`
 	Emoji       string     `json:"emoji"`
-	StartAt     string     `json:"start_at"`
-	EndAt       string     `json:"end_at"`
-	Visibility  string     `json:"visibility"` // public | friends | private
-	ImageURL    string     `json:"image_url"`  // 현재는 빈 값, 추후 사용
+	StartAt     string     `json:"startAt"` // YYYY-MM-DD
+	EndAt       string     `json:"endAt"`   // YYYY-MM-DD
+	Visibility  string     `json:"visibility"`
+	ImageURL    string     `json:"imageUrl,omitempty"`
+	Todos       []TodoItem `json:"todos"`
+	CreatedAt   time.Time  `json:"createdAt"`
+	UpdatedAt   time.Time  `json:"updatedAt"`
+}
+
+// CalendarCreateRequest DTO
+type CalendarCreateRequest struct {
+	Title       string     `json:"title" form:"title" binding:"required"`
+	Description string     `json:"description" form:"description"`
+	Emoji       string     `json:"emoji" form:"emoji"`
+	StartAt     string     `json:"startAt" form:"startAt" binding:"required"`
+	EndAt       string     `json:"endAt" form:"endAt" binding:"required"`
+	Visibility  string     `json:"visibility" form:"visibility" binding:"oneof=public friends private"`
 	Todos       []TodoItem `json:"todos"`
 }
 
-type CalendarCreateRequest struct {
-	Title       string `form:"title" binding:"required"`
-	Emoji       string `form:"emoji"`
-	StartDate   string `form:"startDate" binding:"required"`
-	EndDate     string `form:"endDate" binding:"required"`
-	Description string `form:"description"`
-	Visibility  string `form:"visibility" binding:"required"`
-	Todos       string `form:"todos"` // JSON 문자열 형태
-	// 추후 이미지 업로드 활성화 시 주석 해제
-	// Image *multipart.FileHeader `form:"image"`
-}
-
-// 추후 이미지 업로드 지원을 위한 헬퍼 함수 (현재는 사용 안함)
-func (r *CalendarCreateRequest) HasImage() bool {
-	// return r.Image != nil && r.Image.Size > 0
-	return false // MVP에서는 항상 false
-}
-
+// CalendarUpdateRequest DTO
 type CalendarUpdateRequest struct {
-	Title       string `form:"title"`
-	Description string `form:"description"`
-	Emoji       string `form:"emoji"`
-	StartDate   string `form:"startDate"`
-	EndDate     string `form:"endDate"`
-	Visibility  string `form:"visibility"`
-	Todos       string `form:"todos"` // JSON 문자열 형태
-	// 추후 이미지 업로드 활성화 시 주석 해제
-	// Image       *multipart.FileHeader `form:"image"`
-	// DeleteImage bool                  `form:"deleteImage"` // 기존 이미지 삭제 플래그
+	Title       string     `json:"title" form:"title"`
+	Description string     `json:"description" form:"description"`
+	Emoji       string     `json:"emoji" form:"emoji"`
+	StartAt     string     `json:"startAt" form:"startAt"`
+	EndAt       string     `json:"endAt" form:"endAt"`
+	Visibility  string     `json:"visibility" form:"visibility" binding:"oneof=public friends private"`
+	Todos       []TodoItem `json:"todos"`
 }
 
-func ToCalendarModel(req *CalendarCreateRequest, userUUID string, todos []TodoItem) *CalendarInfo {
+// TodoItem DTO
+type TodoItem struct {
+	Text      string `json:"text" form:"text"`
+	Completed bool   `json:"completed" form:"completed"`
+}
+
+// ---------------------- 변환 함수 ----------------------
+
+// model.Calendar → CalendarInfo DTO
+func ToCalendarInfo(cal *model.Calendar) *CalendarInfo {
+	todos := make([]TodoItem, len(cal.Todos))
+	for i, t := range cal.Todos {
+		todos[i] = TodoItem{
+			Text:      t.Content,
+			Completed: t.Done,
+		}
+	}
+
 	return &CalendarInfo{
-		UserUUID:    userUUID,
-		Title:       req.Title,
-		Description: req.Description,
-		Emoji:       req.Emoji,
-		StartAt:     req.StartDate,
-		EndAt:       req.EndDate,
-		Visibility:  req.Visibility,
-		ImageURL:    "", // MVP에서는 이미지 등록 안함
+		EventID:     cal.ID,
+		UserUUID:    cal.UserUUID,
+		Title:       cal.Title,
+		Description: cal.Description,
+		Emoji:       cal.Emoji,
+		StartAt:     cal.StartAt.Format("2006-01-02"),
+		EndAt:       cal.EndAt.Format("2006-01-02"),
+		Visibility:  cal.Visibility,
+		ImageURL:    derefString(cal.ImageURL),
 		Todos:       todos,
+		CreatedAt:   cal.CreatedAt,
+		UpdatedAt:   cal.UpdatedAt,
 	}
 }
 
-func ToCalendarUpdateModel(req *CalendarUpdateRequest, userUUID string, eventID int64, todos []TodoItem, imageURL string) *CalendarInfo {
-	return &CalendarInfo{
-		EventID:     eventID,
-		UserUUID:    userUUID,
-		Title:       req.Title,
-		Description: req.Description,
-		Emoji:       req.Emoji,
-		StartAt:     req.StartDate,
-		EndAt:       req.EndDate,
-		Visibility:  req.Visibility,
-		ImageURL:    imageURL, // 기존 이미지 URL 유지 또는 새 URL
-		Todos:       todos,
+// model.Calendar 리스트 → CalendarInfo 리스트 변환
+func ToCalendarInfoList(models []*model.Calendar) []*CalendarInfo {
+	result := make([]*CalendarInfo, len(models))
+	for i, m := range models {
+		result[i] = ToCalendarInfo(m)
 	}
+	return result
 }
 
-// 추후 이미지 업로드 서비스 구현 시 사용할 인터페이스
-type ImageUploader interface {
-	Upload(file *multipart.FileHeader) (string, error)
-	Delete(url string) error
+// ---------------------- 보조 함수 ----------------------
+func derefString(s *string) string {
+	if s == nil {
+		return ""
+	}
+	return *s
 }
