@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/rainbow96bear/planet_utils/model"
+	"github.com/rainbow96bear/planet_utils/pkg/logger"
 )
 
 type CalendarRepository struct {
@@ -23,6 +24,9 @@ func (r *CalendarRepository) FindCalendarsByVisibility(
 	visibilities []string,
 	startDate, endDate time.Time,
 ) ([]*model.Calendar, error) {
+	logger.Infof("start to find calendar events uuid : %s", userUUID)
+	defer logger.Infof("end to find calendar events uuid : %s", userUUID)
+
 	if len(visibilities) == 0 {
 		return nil, nil
 	}
@@ -32,11 +36,10 @@ func (r *CalendarRepository) FindCalendarsByVisibility(
 
 	query := fmt.Sprintf(`
 		SELECT event_id, user_uuid, title, start_at, end_at, emoji, visibility, created_at, updated_at
-		FROM calendars
+		FROM calendar_events
 		WHERE user_uuid = ?
 		  AND visibility IN (%s)
 		  AND start_at < ? AND end_at >= ?
-		  AND status IN ('active','completed')
 		ORDER BY start_at ASC
 	`, placeholders)
 
@@ -63,7 +66,7 @@ func (r *CalendarRepository) FindCalendarsByVisibility(
 		}
 		results = append(results, &c)
 	}
-
+	logger.Debugf("my calendar result : %v", results)
 	return results, nil
 }
 
@@ -75,7 +78,7 @@ func (r *CalendarRepository) CreateCalendarWithTodos(ctx context.Context, cal *m
 
 	// 1️⃣ Calendar 생성
 	queryCal := `
-		INSERT INTO calendars (user_uuid, title, description, emoji, start_at, end_at, visibility, image_url, created_at, updated_at)
+		INSERT INTO calendar_events (user_uuid, title, description, emoji, start_at, end_at, visibility, image_url, created_at, updated_at)
 		VALUES (?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())
 		RETURNING event_id, created_at, updated_at
 	`
@@ -97,7 +100,7 @@ func (r *CalendarRepository) CreateCalendarWithTodos(ctx context.Context, cal *m
 			args = append(args, cal.EventID, t.Content, t.Done)
 		}
 		queryTodo := fmt.Sprintf(`
-			INSERT INTO todos (event_id, content, done)
+			INSERT INTO calendar_todos (event_id, content, done)
 			VALUES %s
 		`, strings.Join(values, ","))
 		if _, err := tx.ExecContext(ctx, queryTodo, args...); err != nil {
@@ -117,8 +120,8 @@ func (r *CalendarRepository) CreateCalendarWithTodos(ctx context.Context, cal *m
 func (r *CalendarRepository) FindByID(ctx context.Context, eventID uint64) (*model.Calendar, error) {
 	query := `
 		SELECT event_id, user_uuid, title, description, emoji, start_at, end_at, visibility, image_url, created_at, updated_at
-		FROM calendars
-		WHERE event_id = ? AND status IN ('active','completed')
+		FROM calendar_events
+		WHERE event_id = ?
 	`
 	row := r.DB.QueryRowContext(ctx, query, eventID)
 
@@ -135,7 +138,7 @@ func (r *CalendarRepository) FindByID(ctx context.Context, eventID uint64) (*mod
 	}
 
 	// 관련 Todos 조회
-	todoQuery := `SELECT id, event_id, content, done FROM todos WHERE event_id = ?`
+	todoQuery := `SELECT id, event_id, content, done FROM calendar_todos WHERE event_id = ?`
 	rows, err := r.DB.QueryContext(ctx, todoQuery, cal.EventID)
 	if err != nil {
 		return nil, fmt.Errorf("query todos: %w", err)
@@ -162,13 +165,13 @@ func (r *CalendarRepository) DeleteCalendar(ctx context.Context, eventID uint64)
 	}
 
 	// 1️⃣ Todos 먼저 삭제
-	if _, err := tx.ExecContext(ctx, `DELETE FROM todos WHERE event_id = ?`, eventID); err != nil {
+	if _, err := tx.ExecContext(ctx, `DELETE FROM calendar_todos WHERE event_id = ?`, eventID); err != nil {
 		tx.Rollback()
 		return fmt.Errorf("delete todos: %w", err)
 	}
 
 	// 2️⃣ Calendar 삭제
-	if _, err := tx.ExecContext(ctx, `DELETE FROM calendars WHERE event_id = ?`, eventID); err != nil {
+	if _, err := tx.ExecContext(ctx, `DELETE FROM calendar_events WHERE event_id = ?`, eventID); err != nil {
 		tx.Rollback()
 		return fmt.Errorf("delete calendar: %w", err)
 	}

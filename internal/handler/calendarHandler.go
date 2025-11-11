@@ -109,6 +109,8 @@ func (h *CalendarHandler) GetUserCalendar(c *gin.Context) {
 }
 
 func (h *CalendarHandler) GetMyCalendar(c *gin.Context) {
+	logger.Infof("start to get my calendar")
+	defer logger.Infof("end to get my calendar")
 	ctx := c.Request.Context()
 	userUUID, _ := utils.GetUserUuid(c) // AuthMiddleware에서 세팅
 
@@ -138,6 +140,7 @@ func (h *CalendarHandler) GetMyCalendar(c *gin.Context) {
 
 	calendars, err := h.CalendarService.GetUserCalendars(ctx, userUUID, visibility, startDate, endDate)
 	if err != nil {
+		logger.Errorf("fail to get calendar events ERR[%s]", err.Error())
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to get calendars"})
 		return
 	}
