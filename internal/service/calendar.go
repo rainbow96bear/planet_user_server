@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/rainbow96bear/planet_user_server/dto"
 	"github.com/rainbow96bear/planet_user_server/internal/repository"
 	"github.com/rainbow96bear/planet_utils/model"
 )
@@ -15,185 +14,126 @@ type CalendarService struct {
 	UsersRepo    *repository.UsersRepository
 }
 
-// -------------------- 유틸 --------------------
-func validateCalendarFields(c *dto.CalendarInfo) error {
-	if c == nil {
-		return fmt.Errorf("invalid calendar data")
-	}
-	if c.Title == "" {
-		return fmt.Errorf("title is required")
-	}
-	if c.StartAt == "" || c.EndAt == "" {
-		return fmt.Errorf("start date and end date are required")
-	}
-	if c.Visibility != "public" && c.Visibility != "friends" && c.Visibility != "private" {
-		return fmt.Errorf("invalid visibility value")
-	}
-	return nil
-}
+func (s *CalendarService) GetUserCalendars(
+	ctx context.Context,
+	userUUID string,
+	visibilityLevels []string,
+	startDate, endDate time.Time,
+) ([]*model.Calendar, error) {
+	var allCalendars []*model.Calendar
 
-// DTO → Model 변환
-func toModel(c *dto.CalendarInfo) *model.Calendar {
-	startAt, _ := time.Parse("2006-01-02", c.StartAt)
-	endAt, _ := time.Parse("2006-01-02", c.EndAt)
-
-	todos := make([]model.Todo, len(c.Todos))
-	for i, t := range c.Todos {
-		todos[i] = model.Todo{
-			Content: t.Text,
-			Done:    t.Completed,
+	// 먼저 캐시에서 visibility별로 가져오기
+	remainingVis := make([]string, 0)
+	for _, vis := range visibilityLevels {
+		if cached, ok := GetCalendarCache(userUUID, startDate.Year(), int(startDate.Month()), vis); ok {
+			allCalendars = append(allCalendars, cached...)
+		} else {
+			remainingVis = append(remainingVis, vis)
 		}
 	}
 
-	return &model.Calendar{
-		ID:          c.EventID,
-		UserUUID:    c.UserUUID,
-		Title:       c.Title,
-		Description: c.Description,
-		Emoji:       c.Emoji,
-		StartAt:     startAt,
-		EndAt:       endAt,
-		Visibility:  c.Visibility,
-		ImageURL:    &c.ImageURL,
-		Todos:       todos,
+	// 남은 visibility가 없으면 바로 반환
+	if len(remainingVis) == 0 {
+		return allCalendars, nil
 	}
-}
 
-// Model → DTO 변환
-func toDTO(m *model.Calendar) *dto.CalendarInfo {
-	todos := make([]dto.TodoItem, len(m.Todos))
-	for i, t := range m.Todos {
-		todos[i] = dto.TodoItem{
-			Text:      t.Content,
-			Completed: t.Done,
+	// ✅ DB 조회: visibility를 배열로 전달
+	calendars, err := s.CalendarRepo.FindCalendarsByVisibility(ctx, userUUID, remainingVis, startDate, endDate)
+	if err != nil {
+		return nil, fmt.Errorf("db error: %w", err)
+	}
+
+	// 조회한 데이터를 visibility별로 분리하여 캐시 저장
+	for _, vis := range remainingVis {
+		filtered := make([]*model.Calendar, 0)
+		for _, c := range calendars {
+			if c.Visibility == vis {
+				filtered = append(filtered, c)
+			}
 		}
+		SetCalendarCache(userUUID, startDate.Year(), int(startDate.Month()), vis, filtered)
+		allCalendars = append(allCalendars, filtered...)
 	}
 
-	imageURL := ""
-	if m.ImageURL != nil {
-		imageURL = *m.ImageURL
-	}
-
-	return &dto.CalendarInfo{
-		EventID:     m.ID,
-		UserUUID:    m.UserUUID,
-		Title:       m.Title,
-		Description: m.Description,
-		Emoji:       m.Emoji,
-		StartAt:     m.StartAt.Format("2006-01-02"),
-		EndAt:       m.EndAt.Format("2006-01-02"),
-		Visibility:  m.Visibility,
-		ImageURL:    imageURL,
-		Todos:       todos,
-		CreatedAt:   m.CreatedAt,
-		UpdatedAt:   m.UpdatedAt,
-	}
+	return allCalendars, nil
 }
 
-func convertModelListToDTO(models []*model.Calendar) []*dto.CalendarInfo {
-	result := make([]*dto.CalendarInfo, len(models))
-	for i, m := range models {
-		result[i] = toDTO(m)
-	}
-	return result
-}
-
-// -------------------- 조회 --------------------
-func (s *CalendarService) GetUserCalendar(ctx context.Context, userUUID string) ([]*dto.CalendarInfo, error) {
-	models, err := s.CalendarRepo.GetCalendarsByUserUuid(ctx, userUUID)
-	if err != nil {
-		return nil, err
-	}
-	return convertModelListToDTO(models), nil
-}
-
-func (s *CalendarService) GetCalendarByID(ctx context.Context, userUUID string, eventID uint64) (*dto.CalendarInfo, error) {
-	isOwner, err := s.CalendarRepo.IsOwnerOfCalendar(ctx, eventID, userUUID)
-	if err != nil {
-		return nil, err
-	}
-	if !isOwner {
-		return nil, fmt.Errorf("unauthorized to access this event")
-	}
-
-	m, err := s.CalendarRepo.GetCalendarByID(ctx, eventID)
-	if err != nil {
-		return nil, err
-	}
-	if m == nil {
-		return nil, nil
-	}
-	return toDTO(m), nil
-}
-
-// -------------------- 생성/수정/삭제 --------------------
-func (s *CalendarService) CreateCalendar(ctx context.Context, calendar *dto.CalendarInfo) error {
-	if err := validateCalendarFields(calendar); err != nil {
-		return err
-	}
-
-	model := toModel(calendar)
-	return s.CalendarRepo.CreateCalendar(ctx, model)
-}
-
-func (s *CalendarService) UpdateCalendar(ctx context.Context, calendar *dto.CalendarInfo) error {
-	if err := validateCalendarFields(calendar); err != nil {
-		return err
-	}
-
-	isOwner, err := s.CalendarRepo.IsOwnerOfCalendar(ctx, calendar.EventID, calendar.UserUUID)
-	if err != nil {
-		return err
-	}
-	if !isOwner {
-		return fmt.Errorf("unauthorized to update this event")
-	}
-
-	model := toModel(calendar)
-	return s.CalendarRepo.UpdateCalendar(ctx, model)
+func (s *CalendarService) CreateCalendar(ctx context.Context, cal *model.Calendar) error {
+	// Transaction: Calendar + Todos
+	return s.CalendarRepo.CreateCalendarWithTodos(ctx, cal)
 }
 
 func (s *CalendarService) DeleteCalendar(ctx context.Context, userUUID string, eventID uint64) error {
-	isOwner, err := s.CalendarRepo.IsOwnerOfCalendar(ctx, eventID, userUUID)
+	// 1. DB에서 삭제
+	cal, err := s.CalendarRepo.FindByID(ctx, eventID)
 	if err != nil {
 		return err
 	}
-	if !isOwner {
-		return fmt.Errorf("unauthorized to delete this event")
+	if cal.UserUUID != userUUID {
+		return fmt.Errorf("unauthorized")
 	}
-	return s.CalendarRepo.DeleteCalendar(ctx, eventID)
+
+	if err := s.CalendarRepo.DeleteCalendar(ctx, eventID); err != nil {
+		return err
+	}
+
+	// 2. 캐시 삭제
+	yearStart := cal.StartAt.Year()
+	monthStart := int(cal.StartAt.Month())
+	DeleteCalendarCache(userUUID, yearStart, monthStart, cal.Visibility)
+
+	return nil
 }
 
-// -------------------- 공개 캘린더 조회 --------------------
-func (s *CalendarService) GetPublicCalendarByNickname(ctx context.Context, nickname string) ([]*dto.CalendarInfo, error) {
-	userUUID, err := s.UsersRepo.GetUserUuidByNickname(ctx, nickname)
-	if err != nil {
-		return nil, err
+func (s *CalendarService) ClearCache(userUUID string, year, month int) {
+	for _, vis := range []string{"public", "friends", "private"} {
+		DeleteCalendarCache(userUUID, year, month, vis)
 	}
-
-	models, err := s.CalendarRepo.GetPublicCalendarsByUserUuid(ctx, userUUID)
-	if err != nil {
-		return nil, err
-	}
-	return convertModelListToDTO(models), nil
 }
 
-func (s *CalendarService) GetAllPublicCalendars(ctx context.Context) ([]*dto.CalendarInfo, error) {
-	models, err := s.CalendarRepo.GetAllPublicCalendars(ctx)
-	if err != nil {
-		return nil, err
+func (s *CalendarService) GenerateMonthData(startDate time.Time) [][]int {
+	monthData := make([][]int, 6)
+	for i := range monthData {
+		monthData[i] = make([]int, 7)
 	}
-	return convertModelListToDTO(models), nil
+
+	firstWeekday := int(startDate.Weekday()) // 0 = Sunday
+	daysInMonth := time.Date(startDate.Year(), startDate.Month()+1, 0, 0, 0, 0, 0, time.UTC).Day()
+
+	day := 1
+weekLoop:
+	for i := 0; i < len(monthData); i++ {
+		for j := 0; j < 7; j++ {
+			if i == 0 && j < firstWeekday {
+				continue
+			}
+			if day > daysInMonth {
+				break weekLoop
+			}
+			monthData[i][j] = day
+			day++
+		}
+	}
+
+	return monthData
 }
 
-func (s *CalendarService) GetCalendarByNicknameAndVisibility(
-	ctx context.Context,
-	nickname string,
-	visibilityLevels []string,
-) ([]*dto.CalendarInfo, error) {
-	models, err := s.CalendarRepo.FindByNicknameAndVisibility(ctx, nickname, visibilityLevels)
-	if err != nil {
-		return nil, err
+func (s *CalendarService) CalculateCompletionData(calendars []*model.Calendar) map[int]int {
+	completion := make(map[int]int)
+	for _, cal := range calendars {
+		day := cal.StartAt.Day()
+		totalTodos := len(cal.Todos)
+		if totalTodos == 0 {
+			completion[day] = 100
+			continue
+		}
+		doneCount := 0
+		for _, t := range cal.Todos {
+			if t.Done {
+				doneCount++
+			}
+		}
+		completion[day] = doneCount * 100 / totalTodos
 	}
-	return convertModelListToDTO(models), nil
+	return completion
 }

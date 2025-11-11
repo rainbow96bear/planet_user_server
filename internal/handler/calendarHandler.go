@@ -1,9 +1,9 @@
 package handler
 
 import (
-	"encoding/json"
 	"net/http"
 	"strconv"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/rainbow96bear/planet_user_server/dto"
@@ -32,7 +32,6 @@ func (h *CalendarHandler) RegisterRoutes(r *gin.Engine) {
 
 	// 공개용 (다른 사람 일정 조회)
 	calendarGroup.GET("/user/:nickname", h.GetUserCalendar)
-	calendarGroup.GET("/user", h.GetAllPublicCalendars)
 
 	// 인증 필요
 	calendarGroup.Use(middleware.AuthMiddleware())
@@ -55,285 +54,165 @@ func (h *CalendarHandler) GetUserCalendar(c *gin.Context) {
 		return
 	}
 
-	// 기본적으로 공개 일정만 조회
-	visibilityLevels := []string{"public"}
+	// year/month 쿼리
+	yearStr := c.Query("year")
+	monthStr := c.Query("month")
+	if yearStr == "" || monthStr == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "year and month are required"})
+		return
+	}
+	year, err := strconv.Atoi(yearStr)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid year"})
+		return
+	}
+	month, err := strconv.Atoi(monthStr)
+	if err != nil || month < 1 || month > 12 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid month"})
+		return
+	}
 
-	// 토큰 확인
-	userUUID, err := utils.GetUserUuid(c)
-	if err == nil && userUUID != "" {
-		logger.Infof("authenticated user: %s", userUUID)
+	startDate := time.Date(year, time.Month(month), 1, 0, 0, 0, 0, time.UTC)
+	endDate := startDate.AddDate(0, 1, 0) // 다음 달 1일
 
-		// 내 프로필인지 확인
-		followeeUUID, err := h.ProfileService.GetUserUuidByNickname(ctx, nickname)
-		if err != nil {
-			logger.Warnf("failed to get user uuid by nickname: %v", err)
-		} else if followeeUUID == userUUID {
-			// 본인 일정일 경우, 모든 visibility 허용
-			visibilityLevels = []string{"public", "friends", "private"}
-		} else {
-			// 친구(팔로우) 여부 확인
-			isFollow, err := h.FollowService.IsFollow(ctx, userUUID, followeeUUID)
-			if err != nil {
-				logger.Warnf("failed to check follow status: %v", err)
-			} else if isFollow {
-				visibilityLevels = append(visibilityLevels, "friends")
+	// visibility
+	authUuid, _ := utils.GetUserUuid(c)
+
+	visibilityLevel := []string{"public"}
+	if authUuid != "" {
+		followeeUuid, err := h.ProfileService.GetUserUuidByNickname(ctx, nickname)
+		if err == nil {
+			isFollow, err := h.FollowService.IsFollow(ctx, authUuid, followeeUuid)
+			if err == nil && isFollow {
+				visibilityLevel = append(visibilityLevel, "friends")
 			}
 		}
-	} else {
-		logger.Infof("unauthenticated request: only public calendars will be returned")
 	}
 
-	// 일정 조회
-	calendars, err := h.CalendarService.GetCalendarByNicknameAndVisibility(ctx, nickname, visibilityLevels)
+	// DB 조회 + 캐시
+	calendars, err := h.CalendarService.GetUserCalendars(ctx, nickname, visibilityLevel, startDate, endDate)
 	if err != nil {
-		logger.Errorf("failed to load user calendar: %v", err)
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to load calendar"})
+		logger.Errorf("failed to get calendars: %v", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to get calendars"})
 		return
 	}
 
-	c.JSON(http.StatusOK, calendars)
+	eventsResp := dto.ToCalendarInfoList(calendars)
+	monthData := h.CalendarService.GenerateMonthData(startDate)
+	completionData := h.CalendarService.CalculateCompletionData(calendars)
+
+	c.JSON(http.StatusOK, gin.H{
+		"events":         eventsResp,
+		"monthData":      monthData,
+		"completionData": completionData,
+	})
 }
 
-// GET /calendar
 func (h *CalendarHandler) GetMyCalendar(c *gin.Context) {
-	logger.Infof("start to get my calendar")
-	defer logger.Infof("end to get my calendar")
-
 	ctx := c.Request.Context()
-	userUUID, err := utils.GetUserUuid(c)
+	userUUID, _ := utils.GetUserUuid(c) // AuthMiddleware에서 세팅
+
+	// year/month 쿼리
+	yearStr := c.Query("year")
+	monthStr := c.Query("month")
+	if yearStr == "" || monthStr == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "year and month are required"})
+		return
+	}
+	year, err := strconv.Atoi(yearStr)
 	if err != nil {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid token"})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid year"})
+		return
+	}
+	month, err := strconv.Atoi(monthStr)
+	if err != nil || month < 1 || month > 12 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid month"})
 		return
 	}
 
-	calendars, err := h.CalendarService.GetUserCalendar(ctx, userUUID)
+	startDate := time.Date(year, time.Month(month), 1, 0, 0, 0, 0, time.UTC)
+	endDate := startDate.AddDate(0, 1, 0) // 다음 달 1일
+
+	// 내 캘린더는 private 포함
+	visibility := []string{"public", "friends", "private"}
+
+	calendars, err := h.CalendarService.GetUserCalendars(ctx, userUUID, visibility, startDate, endDate)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to load calendar"})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to get calendars"})
 		return
 	}
 
-	c.JSON(http.StatusOK, calendars)
+	c.JSON(http.StatusOK, gin.H{
+		"events":         dto.ToCalendarInfoList(calendars),
+		"monthData":      h.CalendarService.GenerateMonthData(startDate),
+		"completionData": h.CalendarService.CalculateCompletionData(calendars),
+	})
 }
 
-// POST /calendar
 func (h *CalendarHandler) CreateCalendar(c *gin.Context) {
-	logger.Infof("start to create calendar")
-	defer logger.Infof("end to create calendar")
-
 	ctx := c.Request.Context()
 	userUUID, err := utils.GetUserUuid(c)
 	if err != nil {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid token"})
-		return
+		logger.Errorf(err.Error())
 	}
 
-	// FormData 바인딩
 	var req dto.CalendarCreateRequest
-	if err := c.ShouldBind(&req); err != nil {
-		logger.Errorf("form bind error: %v", err)
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid form data"})
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request", "detail": err.Error()})
 		return
 	}
 
-	// todos 파싱
-	var todos []dto.TodoItem
-	if req.Todos != "" {
-		if err := json.Unmarshal([]byte(req.Todos), &todos); err != nil {
-			logger.Errorf("todos parse error: %v", err)
-			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid todos format"})
-			return
-		}
-	}
+	// DTO -> Model 변환
+	calendar := dto.ToCalendarModelFromCreate(&req, userUUID)
 
-	// 이미지 업로드 처리 (추후 활성화)
-	// var imageURL string
-	// if req.HasImage() {
-	// 	imageURL, err = h.ImageUploader.Upload(req.Image)
-	// 	if err != nil {
-	// 		logger.Errorf("image upload error: %v", err)
-	// 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to upload image"})
-	// 		return
-	// 	}
-	// }
-
-	calendar := dto.ToCalendarModel(&req, userUUID, todos)
-
+	// DB 저장
 	if err := h.CalendarService.CreateCalendar(ctx, calendar); err != nil {
-		logger.Errorf("create calendar error: %v", err)
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to create calendar"})
 		return
 	}
 
-	c.JSON(http.StatusCreated, calendar)
+	// 캐시 갱신
+	h.CalendarService.ClearCache(userUUID, calendar.StartAt.Year(), int(calendar.StartAt.Month()))
+
+	c.JSON(http.StatusCreated, gin.H{
+		"message": "calendar created",
+		"event":   dto.ToCalendarInfo(calendar),
+	})
 }
 
-// PUT /calendar/:eventId
-func (h *CalendarHandler) UpdateCalendar(c *gin.Context) {
-	logger.Infof("start to update calendar")
-	defer logger.Infof("end to update calendar")
+func (h *CalendarHandler) UpdateCalendar(c *gin.Context) {}
 
-	ctx := c.Request.Context()
-	userUUID, err := utils.GetUserUuid(c)
-	if err != nil {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid token"})
-		return
-	}
-
-	eventIdStr := c.Param("eventId")
-	eventId, err := strconv.ParseInt(eventIdStr, 10, 64)
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid eventId"})
-		return
-	}
-
-	// FormData 바인딩 (JSON 대신 Form으로 변경)
-	var req dto.CalendarUpdateRequest
-	if err := c.ShouldBind(&req); err != nil {
-		logger.Errorf("form bind error: %v", err)
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid form data"})
-		return
-	}
-
-	// todos 파싱
-	var todos []dto.TodoItem
-	if req.Todos != "" {
-		if err := json.Unmarshal([]byte(req.Todos), &todos); err != nil {
-			logger.Errorf("todos parse error: %v", err)
-			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid todos format"})
-			return
-		}
-	}
-
-	// 기존 일정 조회 (이미지 URL 유지를 위해)
-	existingCalendar, err := h.CalendarService.GetCalendarByID(ctx, userUUID, eventId)
-	if err != nil {
-		logger.Errorf("get existing calendar error: %v", err)
-		c.JSON(http.StatusNotFound, gin.H{"error": "calendar not found"})
-		return
-	}
-
-	imageURL := existingCalendar.ImageURL
-
-	// 이미지 업로드/삭제 처리 (추후 활성화)
-	// if req.DeleteImage {
-	// 	if existingCalendar.ImageURL != "" {
-	// 		_ = h.ImageUploader.Delete(existingCalendar.ImageURL)
-	// 	}
-	// 	imageURL = ""
-	// } else if req.Image != nil && req.Image.Size > 0 {
-	// 	// 기존 이미지 삭제
-	// 	if existingCalendar.ImageURL != "" {
-	// 		_ = h.ImageUploader.Delete(existingCalendar.ImageURL)
-	// 	}
-	// 	// 새 이미지 업로드
-	// 	imageURL, err = h.ImageUploader.Upload(req.Image)
-	// 	if err != nil {
-	// 		logger.Errorf("image upload error: %v", err)
-	// 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to upload image"})
-	// 		return
-	// 	}
-	// }
-
-	calendar := dto.ToCalendarUpdateModel(&req, userUUID, eventId, todos, imageURL)
-
-	if err := h.CalendarService.UpdateCalendar(ctx, calendar); err != nil {
-		logger.Errorf("update calendar error: %v", err)
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-		return
-	}
-
-	c.JSON(http.StatusOK, calendar)
-}
-
-// DELETE /calendar/:eventId
 func (h *CalendarHandler) DeleteCalendar(c *gin.Context) {
-	logger.Infof("start to delete calendar")
-	defer logger.Infof("end to delete calendar")
-
 	ctx := c.Request.Context()
-	userUUID, err := utils.GetUserUuid(c)
-	if err != nil {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid token"})
+
+	// eventId 파라미터 확인
+	eventIDStr := c.Param("eventId")
+	if eventIDStr == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "eventId is required"})
 		return
 	}
-
-	eventIdStr := c.Param("eventId")
-	eventId, err := strconv.ParseInt(eventIdStr, 10, 64)
+	eventID, err := strconv.ParseUint(eventIDStr, 10, 64)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid eventId"})
 		return
 	}
 
-	// 삭제 전 일정 조회 (이미지 삭제를 위해, 추후 사용)
-	// calendar, err := h.CalendarService.GetCalendarByID(ctx, userUUID, eventId)
-	// if err != nil {
-	// 	logger.Errorf("get calendar error: %v", err)
-	// 	c.JSON(http.StatusNotFound, gin.H{"error": "calendar not found"})
-	// 	return
-	// }
-
-	// 이미지 삭제 (추후 활성화)
-	// if calendar.ImageURL != "" {
-	// 	_ = h.ImageUploader.Delete(calendar.ImageURL)
-	// }
-
-	if err := h.CalendarService.DeleteCalendar(ctx, userUUID, eventId); err != nil {
-		logger.Errorf("delete calendar error: %v", err)
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+	// 인증된 유저 UUID 가져오기
+	userUUID, err := utils.GetUserUuid(c)
+	if err != nil || userUUID == "" {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"success": true})
-}
-
-// GET /calendar/user/:nickname
-func (h *CalendarHandler) GetUserCalendar(c *gin.Context) {
-	logger.Infof("start to get user calendar")
-	defer logger.Infof("end to get user calendar")
-
-	ctx := c.Request.Context()
-	nickname := c.Param("nickname")
-	if nickname == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "nickname is required"})
-		return
-	}
-	isFollowing, err := h.FollowService.IsFollow(ctx, userUUID, nickname)
-	if err != nil {
-		logger.Warnf("follow status check failed: %v", err)
-	}
-
-	var calendars []*dto.CalendarInfo
-	if isFollowing {
-		calendars, err = h.CalendarService.GetPublicCalendarByNickname(ctx, nickname)
-		if err != nil {
-			logger.Errorf("get user calendar error: %v", err)
-			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-			return
-		}
-	} else {
-		calendars, err = h.CalendarService.GetPublicCalendarByNickname(ctx, nickname)
-		if err != nil {
-			logger.Errorf("get user calendar error: %v", err)
-			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-			return
-		}
-	}
-
-	c.JSON(http.StatusOK, calendars)
-}
-
-// GET /calendar/user
-func (h *CalendarHandler) GetAllPublicCalendars(c *gin.Context) {
-	logger.Infof("start to get all public calendars")
-	defer logger.Infof("end to get all public calendars")
-
-	ctx := c.Request.Context()
-	calendars, err := h.CalendarService.GetAllPublicCalendars(ctx)
-	if err != nil {
-		logger.Errorf("get all public calendars error: %v", err)
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to load public calendars"})
+	// DB에서 삭제 (Repository/Service 호출)
+	if err := h.CalendarService.DeleteCalendar(ctx, userUUID, eventID); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to delete calendar"})
 		return
 	}
 
-	c.JSON(http.StatusOK, calendars)
+	// 캐시 삭제 (삭제된 이벤트의 연도/월/visibility 기준)
+	// Service 내부에서 DeleteCalendarCache를 호출하도록 처리하면 좋음
+	// 예: h.CalendarService.DeleteCalendarCache(userUUID, year, month, visibility)
+
+	c.JSON(http.StatusOK, gin.H{"message": "calendar deleted successfully"})
 }

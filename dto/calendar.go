@@ -6,91 +6,170 @@ import (
 	"github.com/rainbow96bear/planet_utils/model"
 )
 
-// CalendarInfo는 프론트엔드에 반환할 일정 정보
+// ---------------------- DTO 구조 ----------------------
+
 type CalendarInfo struct {
-	EventID     uint64     `json:"eventId"`  // calendar_events.id
-	UserUUID    string     `json:"userUuid"` // calendar_events.user_id
+	EventID     uint64     `json:"eventId"`
+	UserUUID    string     `json:"userUuid"`
 	Title       string     `json:"title"`
 	Description string     `json:"description"`
 	Emoji       string     `json:"emoji"`
-	StartAt     string     `json:"startAt"` // YYYY-MM-DD
-	EndAt       string     `json:"endAt"`   // YYYY-MM-DD
+	StartAt     string     `json:"startAt"`
+	EndAt       string     `json:"endAt"`
 	Visibility  string     `json:"visibility"`
-	ImageURL    string     `json:"imageUrl,omitempty"`
 	Todos       []TodoItem `json:"todos"`
+	ImageURL    *string    `json:"imageUrl,omitempty"`
 	CreatedAt   time.Time  `json:"createdAt"`
 	UpdatedAt   time.Time  `json:"updatedAt"`
 }
 
-// CalendarCreateRequest DTO
 type CalendarCreateRequest struct {
-	Title       string     `json:"title" form:"title" binding:"required"`
-	Description string     `json:"description" form:"description"`
-	Emoji       string     `json:"emoji" form:"emoji"`
-	StartAt     string     `json:"startAt" form:"startAt" binding:"required"`
-	EndAt       string     `json:"endAt" form:"endAt" binding:"required"`
-	Visibility  string     `json:"visibility" form:"visibility" binding:"oneof=public friends private"`
-	Todos       []TodoItem `json:"todos"`
+	Title       string     `json:"title" form:"title" binding:"required,max=255"`
+	Description string     `json:"description" form:"description" binding:"max=65535"`
+	Emoji       string     `json:"emoji" form:"emoji" binding:"omitempty,max=10"`
+	StartAt     string     `json:"startAt" form:"startAt" binding:"required,datetime=2006-01-02"`
+	EndAt       string     `json:"endAt" form:"endAt" binding:"required,datetime=2006-01-02,gtefield=StartAt"`
+	Visibility  string     `json:"visibility" form:"visibility" binding:"required,oneof=public friends private"`
+	Todos       []TodoItem `json:"todos" form:"todos" binding:"omitempty,dive"`
+	ImageURL    *string    `json:"imageUrl" form:"imageUrl"`
 }
 
-// CalendarUpdateRequest DTO
 type CalendarUpdateRequest struct {
-	Title       string     `json:"title" form:"title"`
-	Description string     `json:"description" form:"description"`
-	Emoji       string     `json:"emoji" form:"emoji"`
-	StartAt     string     `json:"startAt" form:"startAt"`
-	EndAt       string     `json:"endAt" form:"endAt"`
-	Visibility  string     `json:"visibility" form:"visibility" binding:"oneof=public friends private"`
-	Todos       []TodoItem `json:"todos"`
+	Title       *string     `json:"title,omitempty" form:"title" binding:"omitempty,max=255"`
+	Description *string     `json:"description,omitempty" form:"description" binding:"omitempty,max=65535"`
+	Emoji       *string     `json:"emoji,omitempty" form:"emoji" binding:"omitempty,max=10"`
+	StartAt     *string     `json:"startAt,omitempty" form:"startAt" binding:"omitempty,datetime=2006-01-02"`
+	EndAt       *string     `json:"endAt,omitempty" form:"endAt" binding:"omitempty,datetime=2006-01-02"`
+	Visibility  *string     `json:"visibility,omitempty" form:"visibility" binding:"omitempty,oneof=public friends private"`
+	Todos       *[]TodoItem `json:"todos,omitempty" form:"todos" binding:"omitempty,dive"`
+	ImageURL    *string     `json:"imageUrl,omitempty" form:"imageUrl"`
 }
 
-// TodoItem DTO
 type TodoItem struct {
-	Text      string `json:"text" form:"text"`
-	Completed bool   `json:"completed" form:"completed"`
+	ID        *uint64 `json:"id,omitempty" form:"id"`
+	Text      string  `json:"text" form:"text" binding:"required,max=255"`
+	Completed bool    `json:"completed" form:"completed"`
 }
 
-// ---------------------- 변환 함수 ----------------------
-
-// model.Calendar → CalendarInfo DTO
 func ToCalendarInfo(cal *model.Calendar) *CalendarInfo {
+	if cal == nil {
+		return nil
+	}
+
 	todos := make([]TodoItem, len(cal.Todos))
 	for i, t := range cal.Todos {
 		todos[i] = TodoItem{
+			ID:        &t.ID,
 			Text:      t.Content,
 			Completed: t.Done,
 		}
 	}
 
 	return &CalendarInfo{
-		EventID:     cal.ID,
+		EventID:     cal.EventID,
 		UserUUID:    cal.UserUUID,
 		Title:       cal.Title,
 		Description: cal.Description,
 		Emoji:       cal.Emoji,
-		StartAt:     cal.StartAt.Format("2006-01-02"),
-		EndAt:       cal.EndAt.Format("2006-01-02"),
+		StartAt:     formatDate(cal.StartAt),
+		EndAt:       formatDate(cal.EndAt),
 		Visibility:  cal.Visibility,
-		ImageURL:    derefString(cal.ImageURL),
+		ImageURL:    cal.ImageURL,
 		Todos:       todos,
 		CreatedAt:   cal.CreatedAt,
 		UpdatedAt:   cal.UpdatedAt,
 	}
 }
 
-// model.Calendar 리스트 → CalendarInfo 리스트 변환
+type CalendarEventResponse struct {
+	EventID     uint64     `json:"eventId"`
+	Title       string     `json:"title"`
+	Description string     `json:"description"`
+	Emoji       string     `json:"emoji"`
+	StartAt     time.Time  `json:"startAt"`
+	EndAt       time.Time  `json:"endAt"`
+	Visibility  string     `json:"visibility"`
+	ImageURL    *string    `json:"imageUrl,omitempty"`
+	Todos       []TodoItem `json:"todos"`
+}
+
 func ToCalendarInfoList(models []*model.Calendar) []*CalendarInfo {
-	result := make([]*CalendarInfo, len(models))
-	for i, m := range models {
-		result[i] = ToCalendarInfo(m)
+	result := make([]*CalendarInfo, 0, len(models))
+	for _, m := range models {
+		if info := ToCalendarInfo(m); info != nil {
+			result = append(result, info)
+		}
 	}
 	return result
 }
 
-// ---------------------- 보조 함수 ----------------------
-func derefString(s *string) string {
-	if s == nil {
+func ToCalendarModelFromCreate(req *CalendarCreateRequest, userUUID string) *model.Calendar {
+	cal := &model.Calendar{
+		UserUUID:    userUUID,
+		Title:       req.Title,
+		Description: req.Description,
+		Emoji:       req.Emoji,
+		StartAt:     parseDate(req.StartAt),
+		EndAt:       parseDate(req.EndAt),
+		Visibility:  req.Visibility,
+		ImageURL:    req.ImageURL,
+		Todos:       make([]model.Todo, len(req.Todos)),
+	}
+
+	for i, t := range req.Todos {
+		cal.Todos[i] = model.Todo{
+			Content: t.Text,
+			Done:    t.Completed,
+		}
+	}
+
+	return cal
+}
+
+func UpdateCalendarModelFromRequest(cal *model.Calendar, req *CalendarUpdateRequest) {
+	if req.Title != nil {
+		cal.Title = *req.Title
+	}
+	if req.Description != nil {
+		cal.Description = *req.Description
+	}
+	if req.Emoji != nil {
+		cal.Emoji = *req.Emoji
+	}
+	if req.StartAt != nil {
+		cal.StartAt = parseDate(*req.StartAt)
+	}
+	if req.EndAt != nil {
+		cal.EndAt = parseDate(*req.EndAt)
+	}
+	if req.Visibility != nil {
+		cal.Visibility = *req.Visibility
+	}
+	if req.ImageURL != nil {
+		cal.ImageURL = req.ImageURL
+	}
+
+	if req.Todos != nil {
+		todos := make([]model.Todo, len(*req.Todos))
+		for i, t := range *req.Todos {
+			todos[i] = model.Todo{
+				ID:      0, // 신규 Todo이면 0
+				Content: t.Text,
+				Done:    t.Completed,
+			}
+		}
+		cal.Todos = todos
+	}
+}
+
+func formatDate(t time.Time) string {
+	if t.IsZero() {
 		return ""
 	}
-	return *s
+	return t.Format("2006-01-02")
+}
+
+func parseDate(s string) time.Time {
+	t, _ := time.Parse("2006-01-02", s)
+	return t
 }
