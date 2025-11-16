@@ -2,62 +2,65 @@ package repository
 
 import (
 	"context"
-	"database/sql"
 	"fmt"
 
+	"github.com/rainbow96bear/planet_utils/model"
 	"github.com/rainbow96bear/planet_utils/pkg/logger"
+	"gorm.io/gorm"
 )
 
 type FollowsRepository struct {
-	DB *sql.DB
+	DB *gorm.DB
 }
 
-func (r *FollowsRepository) IsFollow(ctx context.Context, followerUuid, followeeUuid string) (bool, error) {
-	logger.Infof("start to check %s follow %s", followerUuid, followeeUuid)
-	defer logger.Infof("end to check %s follow %s", followerUuid, followeeUuid)
+// 팔로우 관계 존재 여부 확인
+func (r *FollowsRepository) IsFollow(ctx context.Context, followerUUID, followeeUUID string) (bool, error) {
+	logger.Infof("start to check %s follow %s", followerUUID, followeeUUID)
+	defer logger.Infof("end to check %s follow %s", followerUUID, followeeUUID)
 
-	query := `SELECT COUNT(*) FROM follows WHERE follower_uuid=? AND followee_uuid=?`
-
-	var count int
-	err := r.DB.QueryRowContext(ctx, query, followerUuid, followeeUuid).Scan(&count)
-
-	return count > 0, err
-}
-
-func (r *FollowsRepository) FollowTx(ctx context.Context, tx *sql.Tx, followerUuid, followeeUuid string) error {
-	logger.Infof("start %s follow %s", followerUuid, followeeUuid)
-	defer logger.Infof("end %s follow %s", followerUuid, followeeUuid)
-
-	query := `INSERT INTO follows (follower_id, followee_id) VALUES (?, ?)`
-	_, err := tx.ExecContext(ctx,
-		query,
-		followerUuid, followeeUuid,
-	)
+	var count int64
+	err := r.DB.WithContext(ctx).
+		Model(&model.Follows{}).
+		Where("follower_uuid = ? AND followee_uuid = ?", followerUUID, followeeUUID).
+		Count(&count).Error
 	if err != nil {
+		return false, err
+	}
+
+	return count > 0, nil
+}
+
+// 팔로우 생성 (트랜잭션 지원)
+func (r *FollowsRepository) FollowTx(ctx context.Context, tx *gorm.DB, followerUUID, followeeUUID string) error {
+	logger.Infof("start %s follow %s", followerUUID, followeeUUID)
+	defer logger.Infof("end %s follow %s", followerUUID, followeeUUID)
+
+	follow := &model.Follows{
+		FollowerUUID: followerUUID,
+		FolloweeUUID: followeeUUID,
+	}
+
+	if err := tx.WithContext(ctx).Create(follow).Error; err != nil {
 		return fmt.Errorf("failed to insert follow: %w", err)
 	}
 
 	return nil
 }
 
-func (r *FollowsRepository) UnfollowTx(ctx context.Context, tx *sql.Tx, followerUuid, followeeUuid string) error {
-	logger.Infof("start %s unfollow %s", followerUuid, followeeUuid)
-	defer logger.Infof("end %s unfollow %s", followerUuid, followeeUuid)
+// 팔로우 삭제 (트랜잭션 지원)
+func (r *FollowsRepository) UnfollowTx(ctx context.Context, tx *gorm.DB, followerUUID, followeeUUID string) error {
+	logger.Infof("start %s unfollow %s", followerUUID, followeeUUID)
+	defer logger.Infof("end %s unfollow %s", followerUUID, followeeUUID)
 
-	query := `DELETE FROM follows WHERE follower_id = ? AND followee_id = ?`
-	result, err := tx.ExecContext(ctx,
-		query,
-		followerUuid, followeeUuid,
-	)
-	if err != nil {
-		return fmt.Errorf("failed to delete follow: %w", err)
+	result := tx.WithContext(ctx).
+		Where("follower_uuid = ? AND followee_uuid = ?", followerUUID, followeeUUID).
+		Delete(&model.Follows{})
+
+	if result.Error != nil {
+		return fmt.Errorf("failed to delete follow: %w", result.Error)
 	}
 
-	rowsAffected, err := result.RowsAffected()
-	if err != nil {
-		return fmt.Errorf("failed to check rows affected: %w", err)
-	}
-	if rowsAffected == 0 {
+	if result.RowsAffected == 0 {
 		return fmt.Errorf("no follow relation found to delete")
 	}
 

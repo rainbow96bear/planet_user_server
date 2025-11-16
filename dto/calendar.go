@@ -46,10 +46,12 @@ type CalendarUpdateRequest struct {
 }
 
 type TodoItem struct {
-	ID        *uint64 `json:"id,omitempty" form:"id"`
+	EventID   *uint64 `json:"eventId,omitempty" form:"eventId"`
 	Text      string  `json:"text" form:"text" binding:"required,max=255"`
 	Completed bool    `json:"completed" form:"completed"`
 }
+
+// ---------------------- 변환 함수 ----------------------
 
 func ToCalendarInfo(cal *model.Calendar) *CalendarInfo {
 	if cal == nil {
@@ -59,7 +61,7 @@ func ToCalendarInfo(cal *model.Calendar) *CalendarInfo {
 	todos := make([]TodoItem, len(cal.Todos))
 	for i, t := range cal.Todos {
 		todos[i] = TodoItem{
-			ID:        &t.ID,
+			EventID:   &t.EventID,
 			Text:      t.Content,
 			Completed: t.Done,
 		}
@@ -81,18 +83,6 @@ func ToCalendarInfo(cal *model.Calendar) *CalendarInfo {
 	}
 }
 
-type CalendarEventResponse struct {
-	EventID     uint64     `json:"eventId"`
-	Title       string     `json:"title"`
-	Description string     `json:"description"`
-	Emoji       string     `json:"emoji"`
-	StartAt     time.Time  `json:"startAt"`
-	EndAt       time.Time  `json:"endAt"`
-	Visibility  string     `json:"visibility"`
-	ImageURL    *string    `json:"imageUrl,omitempty"`
-	Todos       []TodoItem `json:"todos"`
-}
-
 func ToCalendarInfoList(models []*model.Calendar) []*CalendarInfo {
 	result := make([]*CalendarInfo, 0, len(models))
 	for _, m := range models {
@@ -103,6 +93,7 @@ func ToCalendarInfoList(models []*model.Calendar) []*CalendarInfo {
 	return result
 }
 
+// Create 요청을 GORM 모델로 변환
 func ToCalendarModelFromCreate(req *CalendarCreateRequest, userUUID string) *model.Calendar {
 	cal := &model.Calendar{
 		UserUUID:    userUUID,
@@ -126,6 +117,7 @@ func ToCalendarModelFromCreate(req *CalendarCreateRequest, userUUID string) *mod
 	return cal
 }
 
+// Update 요청을 기존 모델에 적용 (GORM용)
 func UpdateCalendarModelFromRequest(cal *model.Calendar, req *CalendarUpdateRequest) {
 	if req.Title != nil {
 		cal.Title = *req.Title
@@ -149,18 +141,21 @@ func UpdateCalendarModelFromRequest(cal *model.Calendar, req *CalendarUpdateRequ
 		cal.ImageURL = req.ImageURL
 	}
 
+	// Todos 업데이트
 	if req.Todos != nil {
-		todos := make([]model.Todo, len(*req.Todos))
-		for i, t := range *req.Todos {
-			todos[i] = model.Todo{
-				ID:      0, // 신규 Todo이면 0
+		var todos []model.Todo
+		for _, t := range *req.Todos {
+			todo := model.Todo{
 				Content: t.Text,
 				Done:    t.Completed,
 			}
+			todos = append(todos, todo)
 		}
 		cal.Todos = todos
 	}
 }
+
+// ---------------------- 헬퍼 함수 ----------------------
 
 func formatDate(t time.Time) string {
 	if t.IsZero() {

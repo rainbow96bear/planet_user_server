@@ -21,37 +21,55 @@ func (s *FollowService) IsFollow(ctx context.Context, followerUuid, followeeUuid
 }
 
 func (s *FollowService) Follow(ctx context.Context, followerUuid, followeeUuid string) error {
-	tx, err := s.UsersRepo.DB.BeginTx(ctx, nil)
-	if err != nil {
-		return err
+	// GORM 트랜잭션 시작
+	tx := s.UsersRepo.DB.WithContext(ctx).Begin()
+	if tx.Error != nil {
+		return tx.Error
 	}
-	defer tx.Rollback()
 
+	// 실패하면 rollback
+	defer func() {
+		if r := recover(); r != nil {
+			tx.Rollback()
+		}
+	}()
+
+	// 팔로우 생성
 	if err := s.FollowsRepo.FollowTx(ctx, tx, followerUuid, followeeUuid); err != nil {
+		tx.Rollback()
 		return err
 	}
 
+	// 팔로우 카운트 증가
 	if err := s.UsersRepo.IncrementFollowCountsTx(ctx, tx, followerUuid, followeeUuid); err != nil {
+		tx.Rollback()
 		return err
 	}
 
-	return tx.Commit()
+	return tx.Commit().Error
 }
 
 func (s *FollowService) Unfollow(ctx context.Context, followerUuid, followeeUuid string) error {
-	tx, err := s.UsersRepo.DB.BeginTx(ctx, nil)
-	if err != nil {
-		return err
+	tx := s.UsersRepo.DB.WithContext(ctx).Begin()
+	if tx.Error != nil {
+		return tx.Error
 	}
-	defer tx.Rollback()
+
+	defer func() {
+		if r := recover(); r != nil {
+			tx.Rollback()
+		}
+	}()
 
 	if err := s.FollowsRepo.UnfollowTx(ctx, tx, followerUuid, followeeUuid); err != nil {
+		tx.Rollback()
 		return err
 	}
 
 	if err := s.UsersRepo.DecrementFollowCountsTx(ctx, tx, followerUuid, followeeUuid); err != nil {
+		tx.Rollback()
 		return err
 	}
 
-	return tx.Commit()
+	return tx.Commit().Error
 }

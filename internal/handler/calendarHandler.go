@@ -153,6 +153,8 @@ func (h *CalendarHandler) GetMyCalendar(c *gin.Context) {
 }
 
 func (h *CalendarHandler) CreateCalendar(c *gin.Context) {
+	logger.Infof("start to create calendar")
+	defer logger.Infof("end to create calendar")
 	ctx := c.Request.Context()
 	userUUID, err := utils.GetUserUuid(c)
 	if err != nil {
@@ -161,15 +163,18 @@ func (h *CalendarHandler) CreateCalendar(c *gin.Context) {
 
 	var req dto.CalendarCreateRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
+		logger.Errorf("fail to bind json ERR[%s]", err.Error())
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request", "detail": err.Error()})
 		return
 	}
 
+	logger.Debugf("request json : %+v", req)
 	// DTO -> Model 변환
 	calendar := dto.ToCalendarModelFromCreate(&req, userUUID)
 
 	// DB 저장
 	if err := h.CalendarService.CreateCalendar(ctx, calendar); err != nil {
+		logger.Errorf("fail to insert ERR[%s]", err.Error())
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to create calendar"})
 		return
 	}
@@ -186,6 +191,8 @@ func (h *CalendarHandler) CreateCalendar(c *gin.Context) {
 func (h *CalendarHandler) UpdateCalendar(c *gin.Context) {}
 
 func (h *CalendarHandler) DeleteCalendar(c *gin.Context) {
+	logger.Infof("start to delete calendar")
+	defer logger.Infof("end to delete calendar")
 	ctx := c.Request.Context()
 
 	// eventId 파라미터 확인

@@ -38,13 +38,19 @@ func init() {
 }
 
 func main() {
-
 	db, err := userInit.InitDB()
 	if err != nil {
 		logger.Errorf("failed to initialize database: %s", err.Error())
 		os.Exit(1)
 	}
-	defer db.Close()
+
+	// GORM 내부의 *sql.DB 가져오기
+	sqlDB, err := db.DB()
+	if err != nil {
+		logger.Errorf("failed to get underlying sql.DB: %s", err.Error())
+		os.Exit(1)
+	}
+	defer sqlDB.Close() // 여기서 닫기
 
 	handlers := bootstrap.InitHandlers(db)
 
@@ -57,6 +63,5 @@ func main() {
 	r.Use(middleware.LoggingMiddleware())
 
 	authServerPort := fmt.Sprintf(":%s", config.PORT)
-
 	r.Run(authServerPort)
 }

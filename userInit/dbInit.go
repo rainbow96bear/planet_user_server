@@ -1,20 +1,19 @@
 package userInit
 
 import (
-	"database/sql"
 	"fmt"
 	"time"
 
-	_ "github.com/go-sql-driver/mysql"
 	"github.com/rainbow96bear/planet_user_server/config"
 	"github.com/rainbow96bear/planet_utils/pkg/logger"
+	"gorm.io/driver/mysql"
+	"gorm.io/gorm"
 )
 
-var DB *sql.DB
+var DB *gorm.DB
 
-// InitDB initializes and returns a database connection.
-func InitDB() (*sql.DB, error) {
-	// 환경 변수에서 DB 접속 정보 읽기
+func InitDB() (*gorm.DB, error) {
+	// DSN 생성
 	dsn := fmt.Sprintf("%s:%s@tcp(%s:%s)/%s?parseTime=true&charset=utf8mb4",
 		config.DB_USER,
 		config.DB_PASSWORD,
@@ -23,19 +22,25 @@ func InitDB() (*sql.DB, error) {
 		config.DB_NAME,
 	)
 	logger.Debugf(dsn)
-	db, err := sql.Open("mysql", dsn)
+
+	// GORM DB 연결
+	db, err := gorm.Open(mysql.Open(dsn), &gorm.Config{})
 	if err != nil {
-		return nil, fmt.Errorf("failed to open DB: %w", err)
+		return nil, fmt.Errorf("failed to connect to database: %w", err)
 	}
 
-	// 커넥션 풀 설정 (운영 환경에서 중요)
-	db.SetMaxOpenConns(50)           // 최대 연결 개수
-	db.SetMaxIdleConns(10)           // 유휴 연결 개수
-	db.SetConnMaxLifetime(time.Hour) // 커넥션 재사용 시간
+	// 기본 SQL DB 객체 가져와 커넥션 풀 설정
+	sqlDB, err := db.DB()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get underlying sql.DB: %w", err)
+	}
+	sqlDB.SetMaxOpenConns(50)
+	sqlDB.SetMaxIdleConns(10)
+	sqlDB.SetConnMaxLifetime(time.Hour)
 
 	// 연결 확인
-	if err := db.Ping(); err != nil {
-		return nil, fmt.Errorf("failed to connect DB: %w", err)
+	if err := sqlDB.Ping(); err != nil {
+		return nil, fmt.Errorf("failed to ping database: %w", err)
 	}
 
 	logger.Infof("✅ Successfully connected to database [%s:%s/%s]", config.DB_HOST, config.DB_PORT, config.DB_NAME)
