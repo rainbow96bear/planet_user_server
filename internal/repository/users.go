@@ -2,10 +2,9 @@ package repository
 
 import (
 	"context"
-	"fmt"
+	"time"
 
-	"github.com/rainbow96bear/planet_user_server/dto"
-	"github.com/rainbow96bear/planet_utils/model"
+	"github.com/rainbow96bear/planet_utils/models"
 	"github.com/rainbow96bear/planet_utils/pkg/logger"
 	"gorm.io/gorm"
 )
@@ -14,164 +13,99 @@ type UsersRepository struct {
 	DB *gorm.DB
 }
 
-// 닉네임으로 user_uuid 조회
-func (r *UsersRepository) GetUserUuidByNickname(ctx context.Context, nickname string) (string, error) {
-	logger.Infof("start to get user uuid: %s", nickname)
-	defer logger.Infof("end to get user uuid: %s", nickname)
+func (r *UsersRepository) BeginTx(ctx context.Context) (*gorm.DB, error) {
+	logger.Infof("UsersRepository: begin transaction")
 
-	var user model.User
-	err := r.DB.WithContext(ctx).Select("user_uuid").Where("nickname = ?", nickname).First(&user).Error
-	if err != nil {
-		logger.Errorf("failed to get user uuid ERR[%s]", err.Error())
-		return "", err
+	tx := r.DB.WithContext(ctx).Begin()
+	if tx.Error != nil {
+		logger.Errorf("UsersRepository: failed to start tx: %v", tx.Error)
+		return nil, tx.Error
 	}
 
-	return user.UserUUID, nil
+	logger.Infof("UsersRepository: transaction started successfully")
+	return tx, nil
 }
 
-// 닉네임으로 프로필 조회
-func (r *UsersRepository) GetProfileInfo(ctx context.Context, nickname string) (*dto.ProfileInfo, error) {
-	logger.Infof("start to get profile info : %s", nickname)
-	defer logger.Infof("end to get profile info: %s", nickname)
+// 이메일로 유저 조회
+func (r *UsersRepository) GetUserByEmail(ctx context.Context, email string) (*models.Users, error) {
+	logger.Infof("UsersRepository:GetUserByEmail email=%s", email)
 
-	var user model.User
-	err := r.DB.WithContext(ctx).
-		Select("user_uuid", "nickname", "profile_image", "bio", "email").
-		Where("nickname = ?", nickname).
-		First(&user).Error
+	var user models.Users
+	err := r.DB.WithContext(ctx).Where("email = ?", email).First(&user).Error
+
 	if err != nil {
-		logger.Errorf("failed to get profile info ERR[%s]", err.Error())
+		logger.Errorf("UsersRepository:GetUserByEmail failed email=%s error=%v", email, err)
 		return nil, err
 	}
 
-	return &dto.ProfileInfo{
-		UserUUID:     user.UserUUID,
-		Nickname:     user.Nickname,
-		ProfileImage: user.ProfileImage,
-		Bio:          user.Bio,
-		Email:        user.Email,
-	}, nil
+	logger.Infof("UsersRepository:GetUserByEmail success user_id=%s", user.ID)
+	return &user, nil
 }
 
-// user_uuid로 내 프로필 조회
-func (r *UsersRepository) GetMyProfileInfo(ctx context.Context, userUUID string) (*dto.ProfileInfo, error) {
-	logger.Infof("start to get profile info user uuid : %s", userUUID)
-	defer logger.Infof("end to get profile info user uuid : %s", userUUID)
+// UserID로 유저 조회
+func (r *UsersRepository) GetUserByID(ctx context.Context, UserID string) (*models.Users, error) {
+	logger.Infof("UsersRepository:GetUserByID user_id=%s", UserID)
 
-	var user model.User
+	var user models.Users
 	err := r.DB.WithContext(ctx).
-		Select("user_uuid", "nickname", "profile_image", "bio", "email").
-		Where("user_uuid = ?", userUUID).
+		Where("id = ?", UserID).
 		First(&user).Error
+
 	if err != nil {
-		logger.Errorf("failed to get profile info ERR[%s]", err.Error())
+		logger.Errorf("UsersRepository:GetUserByID failed user_id=%s error=%v", UserID, err)
 		return nil, err
 	}
 
-	return &dto.ProfileInfo{
-		UserUUID:     user.UserUUID,
-		Nickname:     user.Nickname,
-		ProfileImage: user.ProfileImage,
-		Bio:          user.Bio,
-		Email:        user.Email,
-	}, nil
+	logger.Infof("UsersRepository:GetUserByID success user_id=%s", user.ID)
+	return &user, nil
 }
 
-// 프로필 업데이트
-func (r *UsersRepository) UpdateProfile(ctx context.Context, profile *dto.ProfileInfo) error {
-	logger.Infof("start to update profile info: %s", profile.Nickname)
-	defer logger.Infof("end to update profile info: %s", profile.Nickname)
+// 유저 생성
+func (r *UsersRepository) CreateUser(ctx context.Context, user *models.Users) error {
+	logger.Infof("UsersRepository:CreateUser email=%s", user.Email)
 
-	err := r.DB.WithContext(ctx).Model(&model.User{}).
-		Where("user_uuid = ?", profile.UserUUID).
-		Updates(map[string]any{
-			"nickname":      profile.Nickname,
-			"profile_image": profile.ProfileImage,
-			"bio":           profile.Bio,
-			"email":         profile.Email,
-		}).Error
+	err := r.DB.WithContext(ctx).Create(user).Error
+
 	if err != nil {
-		logger.Errorf("failed to update profile info ERR[%s]", err.Error())
+		logger.Errorf("UsersRepository:CreateUser failed email=%s error=%v", user.Email, err)
 		return err
 	}
 
+	logger.Infof("UsersRepository:CreateUser success user_id=%s", user.ID)
 	return nil
 }
 
-// 팔로우 수 증가
-func (r *UsersRepository) IncrementFollowCountsTx(ctx context.Context, tx *gorm.DB, followerUuid, followeeUuid string) error {
-	if err := tx.WithContext(ctx).Model(&model.User{}).
-		Where("user_uuid = ?", followerUuid).
-		UpdateColumn("following_count", gorm.Expr("following_count + 1")).Error; err != nil {
-		return fmt.Errorf("failed to increment following_count: %w", err)
-	}
+// 마지막 로그인 업데이트
+func (r *UsersRepository) UpdateLastLogin(ctx context.Context, UserID string) error {
+	logger.Infof("UsersRepository:UpdateLastLogin user_id=%s", UserID)
 
-	if err := tx.WithContext(ctx).Model(&model.User{}).
-		Where("user_uuid = ?", followeeUuid).
-		UpdateColumn("follower_count", gorm.Expr("follower_count + 1")).Error; err != nil {
-		return fmt.Errorf("failed to increment follower_count: %w", err)
-	}
+	now := time.Now()
+	err := r.DB.WithContext(ctx).Model(&models.Users{}).
+		Where("id = ?", UserID).
+		Update("last_login", &now).Error
 
-	return nil
-}
-
-// 팔로우 수 감소
-func (r *UsersRepository) DecrementFollowCountsTx(ctx context.Context, tx *gorm.DB, followerUuid, followeeUuid string) error {
-	if err := tx.WithContext(ctx).Model(&model.User{}).
-		Where("user_uuid = ?", followerUuid).
-		UpdateColumn("following_count", gorm.Expr("CASE WHEN following_count > 0 THEN following_count - 1 ELSE 0 END")).Error; err != nil {
-		return fmt.Errorf("failed to decrement following_count: %w", err)
-	}
-
-	if err := tx.WithContext(ctx).Model(&model.User{}).
-		Where("user_uuid = ?", followeeUuid).
-		UpdateColumn("follower_count", gorm.Expr("CASE WHEN follower_count > 0 THEN follower_count - 1 ELSE 0 END")).Error; err != nil {
-		return fmt.Errorf("failed to decrement follower_count: %w", err)
-	}
-
-	return nil
-}
-
-// 팔로워/팔로잉 수 조회
-func (r *UsersRepository) GetFollowCounts(ctx context.Context, userUuid string) (uint, uint, error) {
-	logger.Infof("start to get follow counts: %s", userUuid)
-	defer logger.Infof("end to  get follow counts: %s", userUuid)
-
-	var user model.User
-	err := r.DB.WithContext(ctx).Select("follower_count", "following_count").Where("user_uuid = ?", userUuid).First(&user).Error
 	if err != nil {
-		return 0, 0, err
-	}
-
-	return user.FollowerCount, user.FollowingCount, nil
-}
-
-// 테마 조회
-func (r *UsersRepository) GetTheme(ctx context.Context, userUuid string) (string, error) {
-	logger.Infof("start to get theme user_uuid : %s", userUuid)
-	defer logger.Infof("end to get theme user_uuid : %s", userUuid)
-
-	var user model.User
-	err := r.DB.WithContext(ctx).Select("theme").Where("user_uuid = ?", userUuid).First(&user).Error
-	if err != nil {
-		return "", err
-	}
-
-	return user.Theme, nil
-}
-
-// 테마 설정
-func (r *UsersRepository) SetTheme(ctx context.Context, userUuid, theme string) error {
-	logger.Infof("start to set theme : %s, user_uuid : %s", theme, userUuid)
-	defer logger.Infof("end to set theme : %s, user_uuid : %s", theme, userUuid)
-
-	err := r.DB.WithContext(ctx).Model(&model.User{}).
-		Where("user_uuid = ?", userUuid).
-		Update("theme", theme).Error
-	if err != nil {
-		logger.Errorf("failed to update theme for user_uuid %s: %v", userUuid, err)
+		logger.Errorf("UsersRepository:UpdateLastLogin failed user_id=%s error=%v", UserID, err)
 		return err
 	}
 
+	logger.Infof("UsersRepository:UpdateLastLogin success user_id=%s", UserID)
+	return nil
+}
+
+// Role 변경
+func (r *UsersRepository) UpdateUserRole(ctx context.Context, UserID string, role string) error {
+	logger.Infof("UsersRepository:UpdateUserRole user_id=%s role=%s", UserID, role)
+
+	err := r.DB.WithContext(ctx).Model(&models.Users{}).
+		Where("id = ?", UserID).
+		Update("role", role).Error
+
+	if err != nil {
+		logger.Errorf("UsersRepository:UpdateUserRole failed user_id=%s role=%s error=%v", UserID, role, err)
+		return err
+	}
+
+	logger.Infof("UsersRepository:UpdateUserRole success user_id=%s role=%s", UserID, role)
 	return nil
 }

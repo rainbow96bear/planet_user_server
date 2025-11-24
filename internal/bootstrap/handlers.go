@@ -9,32 +9,26 @@ import (
 )
 
 func InitHandlers(db *gorm.DB) map[string]router.RouteRegistrar {
-	userRepo := &repository.UsersRepository{DB: db}
+	profilesRepo := &repository.ProfilesRepository{DB: db}
 	followRepo := &repository.FollowsRepository{DB: db}
-	calendarRepo := &repository.CalendarRepository{DB: db}
+	calendarEventsRepo := &repository.CalendarEventsRepository{DB: db}
 
 	profileService := &service.ProfileService{
-		UsersRepo: userRepo,
+		ProfilesRepo: profilesRepo,
 	}
 
 	followService := &service.FollowService{
-		UsersRepo:   userRepo,
-		FollowsRepo: followRepo,
-	}
-
-	settingService := &service.SettingService{
-		UsersRepo: userRepo,
+		ProfilesRepo: profilesRepo,
+		FollowsRepo:  followRepo,
 	}
 
 	calendarService := &service.CalendarService{
-		CalendarRepo: calendarRepo,
-		UsersRepo:    userRepo,
+		CalendarEventsRepo: calendarEventsRepo,
 	}
 
 	return map[string]router.RouteRegistrar{
 		"profile":  handler.NewProfileHandler(profileService, followService),
-		"user":     handler.NewUserHandler(profileService, followService),
-		"setting":  handler.NewSettingHandler(settingService),
+		"follow":   handler.NewFollowHandler(profileService, followService),
 		"calendar": handler.NewCalendarHandler(calendarService),
 	}
 }

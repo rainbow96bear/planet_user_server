@@ -58,7 +58,7 @@ func AuthMiddleware() gin.HandlerFunc {
 		}
 
 		// 필수 claim 확인
-		userUuid, ok1 := claims["user_uuid"].(string)
+		UserID, ok1 := claims["user_uuid"].(string)
 		nickname, ok2 := claims["nickname"].(string)
 		if !ok1 || !ok2 {
 			c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid token claims"})
@@ -67,7 +67,7 @@ func AuthMiddleware() gin.HandlerFunc {
 		}
 
 		// Context에 저장 (핸들러에서 사용 가능)
-		c.Set("user_uuid", userUuid)
+		c.Set("user_uuid", UserID)
 		c.Set("nickname", nickname)
 
 		c.Next()

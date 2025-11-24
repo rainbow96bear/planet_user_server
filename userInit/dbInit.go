@@ -6,34 +6,35 @@ import (
 
 	"github.com/rainbow96bear/planet_user_server/config"
 	"github.com/rainbow96bear/planet_utils/pkg/logger"
-	"gorm.io/driver/mysql"
+	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 )
 
 var DB *gorm.DB
 
+// InitDB initializes and returns a PostgreSQL database connection.
 func InitDB() (*gorm.DB, error) {
-	// DSN 생성
-	dsn := fmt.Sprintf("%s:%s@tcp(%s:%s)/%s?parseTime=true&charset=utf8mb4",
-		config.DB_USER,
-		config.DB_PASSWORD,
+	dsn := fmt.Sprintf(
+		"host=%s port=%s user=%s password=%s dbname=%s sslmode=disable TimeZone=Asia/Seoul",
 		config.DB_HOST,
 		config.DB_PORT,
+		config.DB_USER,
+		config.DB_PASSWORD,
 		config.DB_NAME,
 	)
-	logger.Debugf(dsn)
+	logger.Debugf("PostgreSQL DSN: %s", dsn)
 
-	// GORM DB 연결
-	db, err := gorm.Open(mysql.Open(dsn), &gorm.Config{})
+	gormDB, err := gorm.Open(postgres.Open(dsn), &gorm.Config{})
 	if err != nil {
-		return nil, fmt.Errorf("failed to connect to database: %w", err)
+		return nil, fmt.Errorf("failed to open GORM DB: %w", err)
 	}
 
-	// 기본 SQL DB 객체 가져와 커넥션 풀 설정
-	sqlDB, err := db.DB()
+	// sql.DB 가져오기 → 커넥션 풀 설정
+	sqlDB, err := gormDB.DB()
 	if err != nil {
 		return nil, fmt.Errorf("failed to get underlying sql.DB: %w", err)
 	}
+
 	sqlDB.SetMaxOpenConns(50)
 	sqlDB.SetMaxIdleConns(10)
 	sqlDB.SetConnMaxLifetime(time.Hour)
@@ -43,8 +44,8 @@ func InitDB() (*gorm.DB, error) {
 		return nil, fmt.Errorf("failed to ping database: %w", err)
 	}
 
-	logger.Infof("✅ Successfully connected to database [%s:%s/%s]", config.DB_HOST, config.DB_PORT, config.DB_NAME)
+	logger.Infof("✅ Successfully connected to PostgreSQL [%s:%s/%s]", config.DB_HOST, config.DB_PORT, config.DB_NAME)
 
-	DB = db
-	return db, nil
+	DB = gormDB
+	return gormDB, nil
 }

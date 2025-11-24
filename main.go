@@ -40,18 +40,11 @@ func init() {
 func main() {
 	db, err := userInit.InitDB()
 	if err != nil {
-		logger.Errorf("failed to initialize database: %s", err.Error())
+		logger.Errorf("failed to initialize database: %v", err)
 		os.Exit(1)
 	}
 
-	// GORM 내부의 *sql.DB 가져오기
-	sqlDB, err := db.DB()
-	if err != nil {
-		logger.Errorf("failed to get underlying sql.DB: %s", err.Error())
-		os.Exit(1)
-	}
-	defer sqlDB.Close() // 여기서 닫기
-
+	// 핸들러 초기화
 	handlers := bootstrap.InitHandlers(db)
 
 	r := router.SetupRouter(func(r *gin.Engine) {
@@ -62,6 +55,9 @@ func main() {
 
 	r.Use(middleware.LoggingMiddleware())
 
-	authServerPort := fmt.Sprintf(":%s", config.PORT)
-	r.Run(authServerPort)
+	userServerPort := fmt.Sprintf(":%s", config.PORT)
+	if err := r.Run(userServerPort); err != nil {
+		logger.Errorf("failed to start server: %v", err)
+		os.Exit(1)
+	}
 }

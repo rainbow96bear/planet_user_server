@@ -4,80 +4,91 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/google/uuid"
 	"github.com/rainbow96bear/planet_user_server/dto"
 	"github.com/rainbow96bear/planet_user_server/internal/repository"
 )
 
 type ProfileService struct {
-	UsersRepo *repository.UsersRepository
+	ProfilesRepo *repository.ProfilesRepository
 }
 
+// 닉네임으로 사용자 UUID 조회
+func (s *ProfileService) GetUserIDByNickname(ctx context.Context, nickname string) (uuid.UUID, error) {
+	UserID, err := s.ProfilesRepo.GetUserIDByNickname(ctx, nickname)
+	if err != nil {
+		return uuid.Nil, fmt.Errorf("failed to get user ID by nickname: %w", err)
+	}
+	if UserID == uuid.Nil {
+		return uuid.Nil, fmt.Errorf("user not found for nickname: %s", nickname)
+	}
+	return UserID, nil
+}
+
+// 다른 유저 프로필 조회
 func (s *ProfileService) GetProfileInfo(ctx context.Context, nickname string) (*dto.ProfileInfo, error) {
-	profile, err := s.UsersRepo.GetProfileInfo(ctx, nickname)
+	profile, err := s.ProfilesRepo.GetProfileInfo(ctx, nickname)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to get profile info: %w", err)
 	}
-
 	if profile == nil {
-		return nil, fmt.Errorf("fail to get profile info")
+		return nil, fmt.Errorf("profile not found for nickname: %s", nickname)
 	}
-
-	userUuid, err := s.UsersRepo.GetUserUuidByNickname(ctx, nickname)
-	if err != nil {
-		return nil, err
-	}
-
-	followerCount, followingCount, err := s.UsersRepo.GetFollowCounts(ctx, userUuid)
-	if err != nil {
-		return nil, err
-	}
-
-	profile.FollowerCount = followerCount
-	profile.FollowingCount = followingCount
-
 	return profile, nil
 }
 
-func (s *ProfileService) GetMyProfileInfo(ctx context.Context, userUuid string) (*dto.ProfileInfo, error) {
-	profile, err := s.UsersRepo.GetMyProfileInfo(ctx, userUuid)
+func (s *ProfileService) GetFollowCounts(ctx context.Context, UserID uuid.UUID) (followerCount int, followingCount int, err error) {
+	return s.ProfilesRepo.GetFollowCounts(ctx, UserID)
+}
+
+// 내 프로필 조회
+func (s *ProfileService) GetMyProfileInfo(ctx context.Context, UserID uuid.UUID) (*dto.ProfileInfo, error) {
+	profile, err := s.ProfilesRepo.GetMyProfileInfo(ctx, UserID)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to get my profile info: %w", err)
 	}
-
 	if profile == nil {
-		return nil, fmt.Errorf("fail to get profile info")
+		return nil, fmt.Errorf("my profile not found for user: %s", UserID)
 	}
-
 	return profile, nil
 }
 
-func (s *ProfileService) UpdateProfile(ctx context.Context, profile *dto.ProfileInfo) error {
-	err := s.UsersRepo.UpdateProfile(ctx, profile)
+// 프로필 업데이트
+func (s *ProfileService) UpdateProfile(ctx context.Context, UserID uuid.UUID, nickname string, req *dto.ProfileUpdateRequest) (*dto.ProfileInfo, error) {
+	// 먼저 UUID와 닉네임 일치 여부 검증
+	isMyProfile, err := s.ProfilesRepo.IsMyProfile(ctx, UserID)
 	if err != nil {
-		return err
+		return nil, fmt.Errorf("failed to verify profile ownership: %w", err)
+	}
+	if !isMyProfile {
+		return nil, fmt.Errorf("unauthorized: cannot update another user's profile")
 	}
 
+	// DTO -> 내부 모델 변환
+	updateModel := dto.ToProfileUpdateModel(req, UserID)
+
+	// 업데이트
+	if err := s.ProfilesRepo.UpdateProfile(ctx, updateModel); err != nil {
+		return nil, fmt.Errorf("failed to update profile: %w", err)
+	}
+
+	// 업데이트 후 최신 프로필 반환
+	return s.GetMyProfileInfo(ctx, UserID)
+}
+
+// 테마 조회
+func (s *ProfileService) GetTheme(ctx context.Context, UserID uuid.UUID) (string, error) {
+	theme, err := s.ProfilesRepo.GetTheme(ctx, UserID)
+	if err != nil {
+		return "", fmt.Errorf("failed to get theme: %w", err)
+	}
+	return theme, nil
+}
+
+// 테마 설정
+func (s *ProfileService) SetTheme(ctx context.Context, userID uuid.UUID, theme string) error {
+	if err := s.ProfilesRepo.SetTheme(ctx, userID, theme); err != nil {
+		return fmt.Errorf("failed to set theme: %w", err)
+	}
 	return nil
-}
-
-func (s *ProfileService) GetUserUuidByNickname(ctx context.Context, nickname string) (string, error) {
-	return s.UsersRepo.GetUserUuidByNickname(ctx, nickname)
-}
-
-func (s *ProfileService) GetFollowCounts(ctx context.Context, userUuid string) (uint, uint, error) {
-	followerCounts, followeeCounts, err := s.UsersRepo.GetFollowCounts(ctx, userUuid)
-	if err != nil {
-		return 0, 0, err
-	}
-	return followerCounts, followeeCounts, nil
-}
-
-func (s *ProfileService) IsMyProfile(ctx context.Context, userUUID string, nickname string) (bool, error) {
-	profile, err := s.UsersRepo.GetMyProfileInfo(ctx, userUUID)
-	if err != nil {
-		return false, err
-	}
-
-	// 닉네임 일치 여부 확인
-	return profile.Nickname == nickname, nil
 }

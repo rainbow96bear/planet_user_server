@@ -4,28 +4,30 @@ import (
 	"sync"
 	"time"
 
-	"github.com/rainbow96bear/planet_utils/model"
+	"github.com/google/uuid"
+	"github.com/rainbow96bear/planet_utils/models"
 )
 
 type CalendarCacheItem struct {
-	Data      []*model.Calendar // DB 모델 그대로 캐시
+	Data      []*models.CalendarEvents // DB 모델 그대로 캐시
 	ExpiresAt time.Time
 }
 
-// key: "userUUID:year:month:visibility"
+// key: "UserID:year:month:visibility"
 var calendarCache sync.Map
 var cacheTTL = 1 * time.Minute
 
 // BuildCacheKey generates key for caching
-func buildCacheKey(userUUID string, year int, month int, visibility string) string {
-	return userUUID + ":" +
+func buildCacheKey(UserID uuid.UUID, year int, month int, visibility string) string {
+	UserIDStr := UserID.String()
+	return UserIDStr + ":" +
 		time.Date(year, time.Month(month), 1, 0, 0, 0, 0, time.UTC).Format("2006-01") +
 		":" + visibility
 }
 
 // GetCalendarCache retrieves cached calendars if exists and not expired
-func GetCalendarCache(userUUID string, year int, month int, visibility string) ([]*model.Calendar, bool) {
-	key := buildCacheKey(userUUID, year, month, visibility)
+func GetCalendarCache(UserID uuid.UUID, year int, month int, visibility string) ([]*models.CalendarEvents, bool) {
+	key := buildCacheKey(UserID, year, month, visibility)
 	if item, ok := calendarCache.Load(key); ok {
 		cacheItem, valid := item.(CalendarCacheItem)
 		if valid && time.Now().Before(cacheItem.ExpiresAt) {
@@ -37,15 +39,15 @@ func GetCalendarCache(userUUID string, year int, month int, visibility string) (
 }
 
 // SetCalendarCache stores calendar data in cache
-func SetCalendarCache(userUUID string, year int, month int, visibility string, data []*model.Calendar) {
-	key := buildCacheKey(userUUID, year, month, visibility)
+func SetCalendarCache(UserID uuid.UUID, year int, month int, visibility string, data []*models.CalendarEvents) {
+	key := buildCacheKey(UserID, year, month, visibility)
 	calendarCache.Store(key, CalendarCacheItem{
 		Data:      data,
 		ExpiresAt: time.Now().Add(cacheTTL),
 	})
 }
 
-func DeleteCalendarCache(userUUID string, year int, month int, visibility string) {
-	key := buildCacheKey(userUUID, year, month, visibility)
+func DeleteCalendarCache(UserID uuid.UUID, year int, month int, visibility string) {
+	key := buildCacheKey(UserID, year, month, visibility)
 	calendarCache.Delete(key)
 }

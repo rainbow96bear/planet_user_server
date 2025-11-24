@@ -4,7 +4,8 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/rainbow96bear/planet_utils/model"
+	"github.com/google/uuid"
+	"github.com/rainbow96bear/planet_utils/models"
 	"github.com/rainbow96bear/planet_utils/pkg/logger"
 	"gorm.io/gorm"
 )
@@ -13,14 +14,25 @@ type FollowsRepository struct {
 	DB *gorm.DB
 }
 
+func (r *FollowsRepository) BeginTx(ctx context.Context) (*gorm.DB, error) {
+	logger.Infof("starting transaction for FollowsRepository")
+	tx := r.DB.WithContext(ctx).Begin()
+	if tx.Error != nil {
+		logger.Errorf("failed to start transaction: %v", tx.Error)
+		return nil, tx.Error
+	}
+	logger.Infof("transaction started successfully")
+	return tx, nil
+}
+
 // 팔로우 관계 존재 여부 확인
-func (r *FollowsRepository) IsFollow(ctx context.Context, followerUUID, followeeUUID string) (bool, error) {
+func (r *FollowsRepository) IsFollow(ctx context.Context, followerUUID, followeeUUID uuid.UUID) (bool, error) {
 	logger.Infof("start to check %s follow %s", followerUUID, followeeUUID)
 	defer logger.Infof("end to check %s follow %s", followerUUID, followeeUUID)
 
 	var count int64
 	err := r.DB.WithContext(ctx).
-		Model(&model.Follows{}).
+		Model(&models.Follows{}).
 		Where("follower_uuid = ? AND followee_uuid = ?", followerUUID, followeeUUID).
 		Count(&count).Error
 	if err != nil {
@@ -31,13 +43,13 @@ func (r *FollowsRepository) IsFollow(ctx context.Context, followerUUID, followee
 }
 
 // 팔로우 생성 (트랜잭션 지원)
-func (r *FollowsRepository) FollowTx(ctx context.Context, tx *gorm.DB, followerUUID, followeeUUID string) error {
-	logger.Infof("start %s follow %s", followerUUID, followeeUUID)
-	defer logger.Infof("end %s follow %s", followerUUID, followeeUUID)
+func (r *FollowsRepository) FollowTx(ctx context.Context, tx *gorm.DB, followerID, followingID uuid.UUID) error {
+	logger.Infof("start %s follow %s", followerID, followingID)
+	defer logger.Infof("end %s follow %s", followerID, followingID)
 
-	follow := &model.Follows{
-		FollowerUUID: followerUUID,
-		FolloweeUUID: followeeUUID,
+	follow := &models.Follows{
+		FollowerID:  followerID,
+		FollowingID: followingID,
 	}
 
 	if err := tx.WithContext(ctx).Create(follow).Error; err != nil {
@@ -48,13 +60,13 @@ func (r *FollowsRepository) FollowTx(ctx context.Context, tx *gorm.DB, followerU
 }
 
 // 팔로우 삭제 (트랜잭션 지원)
-func (r *FollowsRepository) UnfollowTx(ctx context.Context, tx *gorm.DB, followerUUID, followeeUUID string) error {
+func (r *FollowsRepository) UnfollowTx(ctx context.Context, tx *gorm.DB, followerUUID, followeeUUID uuid.UUID) error {
 	logger.Infof("start %s unfollow %s", followerUUID, followeeUUID)
 	defer logger.Infof("end %s unfollow %s", followerUUID, followeeUUID)
 
 	result := tx.WithContext(ctx).
 		Where("follower_uuid = ? AND followee_uuid = ?", followerUUID, followeeUUID).
-		Delete(&model.Follows{})
+		Delete(&models.Follows{})
 
 	if result.Error != nil {
 		return fmt.Errorf("failed to delete follow: %w", result.Error)
