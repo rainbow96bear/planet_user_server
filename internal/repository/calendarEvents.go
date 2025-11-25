@@ -74,7 +74,7 @@ func (r *CalendarEventsRepository) FindByID(ctx context.Context, eventID uuid.UU
 // -------------------------
 // 캘린더 이벤트 삭제 (Todos 포함)
 // -------------------------
-func (r *CalendarEventsRepository) DeleteCalendar(ctx context.Context, eventID uuid.UUID) error {
+func (r *CalendarEventsRepository) DeleteCalendarEvent(ctx context.Context, eventID uuid.UUID) error {
 	logger.Infof("Deleting calendar event: %s", eventID)
 
 	return r.DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
@@ -92,7 +92,7 @@ func (r *CalendarEventsRepository) DeleteCalendar(ctx context.Context, eventID u
 // -------------------------
 // 캘린더 이벤트 업데이트 (Todos 포함)
 // -------------------------
-func (r *CalendarEventsRepository) UpdateCalendar(ctx context.Context, event *models.CalendarEvents) error {
+func (r *CalendarEventsRepository) UpdateCalendarEvent(ctx context.Context, event *models.CalendarEvents) error {
 	logger.Infof("[UpdateCalendar] eventID=%s", event.ID)
 
 	return r.DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {

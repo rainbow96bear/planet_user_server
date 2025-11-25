@@ -30,5 +30,6 @@ func InitHandlers(db *gorm.DB) map[string]router.RouteRegistrar {
 		"profile":  handler.NewProfileHandler(profileService, followService),
 		"follow":   handler.NewFollowHandler(profileService, followService),
 		"calendar": handler.NewCalendarHandler(calendarService),
+		"theme":    handler.NewThemeHandler(profileService),
 	}
 }

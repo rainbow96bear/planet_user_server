@@ -27,26 +27,38 @@ func NewCalendarHandler(calendarService *service.CalendarService) *CalendarHandl
 func (h *CalendarHandler) RegisterRoutes(r *gin.Engine) {
 	// 공개용: 다른 사용자가 보는 달력
 	// Profile 기반, 공개 여부 확인
-	r.GET("/profiles/:nickname/calendar", h.GetUserCalendar)
-
-	// 인증 필요: 내 달력 및 이벤트 관리
-	calendar := r.Group("/calendar")
-	calendar.Use(middleware.AuthMiddleware())
+	me := r.Group("/me")
+	me.Use(middleware.AuthMiddleware())
 	{
-		// 내 전체 달력 조회
-		calendar.GET("/me", h.GetMyCalendar)
-
-		// 이벤트 CRUD
-		calendar.POST("/events", h.CreateCalendar)
-		calendar.PUT("/events/:eventId", h.UpdateCalendar)
-		calendar.DELETE("/events/:eventId", h.DeleteCalendar)
+		me.GET("/calendar", h.GetMyCalendarEvent)
+		me.POST("/calendar/events", h.CreateCalendarEvent)
+		me.PUT("/calendar/events/:eventId", h.UpdateCalendarEvent)
+		me.DELETE("/calendar/events/:eventId", h.DeleteCalendarEvent)
 	}
+
+	users := r.Group("/users/:nickname")
+	users.GET("/calendar", h.GetUserCalendarEvent)
+
+	// r.GET("/profiles/:nickname/calendar", h.GetUserCalendar)
+
+	// // 인증 필요: 내 달력 및 이벤트 관리
+	// calendar := r.Group("/calendar")
+	// calendar.Use(middleware.AuthMiddleware())
+	// {
+	// 	// 내 전체 달력 조회
+	// 	calendar.GET("/me", h.GetMyCalendar)
+
+	// 	// 이벤트 CRUD
+	// 	calendar.POST("/events", h.CreateCalendar)
+	// 	calendar.PUT("/events/:eventId", h.UpdateCalendar)
+	// 	calendar.DELETE("/events/:eventId", h.DeleteCalendar)
+	// }
 }
 
 // ---------------------- Handler ----------------------
 
 // 다른 사람 캘린더 조회
-func (h *CalendarHandler) GetUserCalendar(c *gin.Context) {
+func (h *CalendarHandler) GetUserCalendarEvent(c *gin.Context) {
 	ctx := c.Request.Context()
 	nickname := c.Param("nickname")
 	logger.Infof("GetUserCalendar start, nickname=%s", nickname)
@@ -80,7 +92,7 @@ func (h *CalendarHandler) GetUserCalendar(c *gin.Context) {
 }
 
 // 내 캘린더 조회
-func (h *CalendarHandler) GetMyCalendar(c *gin.Context) {
+func (h *CalendarHandler) GetMyCalendarEvent(c *gin.Context) {
 	ctx := c.Request.Context()
 	UserID, _ := utils.GetUserID(c)
 	logger.Infof("GetMyCalendar start, UserID=%s", UserID)
@@ -103,7 +115,7 @@ func (h *CalendarHandler) GetMyCalendar(c *gin.Context) {
 }
 
 // 캘린더 생성
-func (h *CalendarHandler) CreateCalendar(c *gin.Context) {
+func (h *CalendarHandler) CreateCalendarEvent(c *gin.Context) {
 	ctx := c.Request.Context()
 	UserID, _ := utils.GetUserID(c)
 	logger.Infof("CreateCalendar start, UserID=%s", UserID)
@@ -117,7 +129,7 @@ func (h *CalendarHandler) CreateCalendar(c *gin.Context) {
 	}
 
 	calendar := dto.ToCalendarModelFromCreate(&req, UserID)
-	if err := h.CalendarService.CreateCalendar(ctx, calendar); err != nil {
+	if err := h.CalendarService.CreateCalendarEvent(ctx, calendar); err != nil {
 		logger.Errorf("CreateCalendar failed, UserID=%s, err=%v", UserID, err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to create calendar"})
 		return
@@ -130,7 +142,7 @@ func (h *CalendarHandler) CreateCalendar(c *gin.Context) {
 }
 
 // 캘린더 업데이트
-func (h *CalendarHandler) UpdateCalendar(c *gin.Context) {
+func (h *CalendarHandler) UpdateCalendarEvent(c *gin.Context) {
 	ctx := c.Request.Context()
 	eventIDStr := c.Param("eventId")
 	UserID, err := utils.GetUserID(c)
@@ -153,7 +165,7 @@ func (h *CalendarHandler) UpdateCalendar(c *gin.Context) {
 		return
 	}
 
-	if err := h.CalendarService.UpdateCalendar(ctx, UserID, eventID, &req); err != nil {
+	if err := h.CalendarService.UpdateCalendarEvent(ctx, UserID, eventID, &req); err != nil {
 		logger.Errorf("UpdateCalendar failed, UserID=%s, eventID=%s, err=%v", UserID, eventID, err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to update calendar"})
 		return
@@ -163,7 +175,7 @@ func (h *CalendarHandler) UpdateCalendar(c *gin.Context) {
 }
 
 // 캘린더 삭제
-func (h *CalendarHandler) DeleteCalendar(c *gin.Context) {
+func (h *CalendarHandler) DeleteCalendarEvent(c *gin.Context) {
 	ctx := c.Request.Context()
 	eventIDStr := c.Param("eventId")
 	UserID, err := utils.GetUserID(c)
@@ -180,7 +192,7 @@ func (h *CalendarHandler) DeleteCalendar(c *gin.Context) {
 		return
 	}
 
-	if err := h.CalendarService.DeleteCalendar(ctx, UserID, eventID); err != nil {
+	if err := h.CalendarService.DeleteCalendarEvent(ctx, UserID, eventID); err != nil {
 		logger.Errorf("DeleteCalendar failed, UserID=%s, eventID=%s, err=%v", UserID, eventID, err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to delete calendar"})
 		return

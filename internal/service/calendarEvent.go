@@ -47,7 +47,7 @@ func (s *CalendarService) GetUserCalendarData(ctx context.Context, nickname stri
 	startDate := time.Date(year, time.Month(month), 1, 0, 0, 0, 0, time.UTC)
 	endDate := startDate.AddDate(0, 1, 0)
 
-	calendars, err := s.GetUserCalendars(ctx, UserID, visibility, startDate, endDate)
+	calendars, err := s.GetUserCalendarsEvent(ctx, UserID, visibility, startDate, endDate)
 	if err != nil {
 		return nil, err
 	}
@@ -66,7 +66,7 @@ func (s *CalendarService) GetMyCalendarData(ctx context.Context, UserID uuid.UUI
 	startDate := time.Date(year, time.Month(month), 1, 0, 0, 0, 0, time.UTC)
 	endDate := startDate.AddDate(0, 1, 0)
 
-	calendars, err := s.GetUserCalendars(ctx, UserID, []string{"public", "friends", "private"}, startDate, endDate)
+	calendars, err := s.GetUserCalendarsEvent(ctx, UserID, []string{"public", "friends", "private"}, startDate, endDate)
 	if err != nil {
 		return nil, err
 	}
@@ -82,7 +82,7 @@ func (s *CalendarService) GetMyCalendarData(ctx context.Context, UserID uuid.UUI
 // 기본 CRUD
 // ----------------------------
 
-func (s *CalendarService) GetUserCalendars(ctx context.Context, UserID uuid.UUID, visibilityLevels []string, startDate, endDate time.Time) ([]*models.CalendarEvents, error) {
+func (s *CalendarService) GetUserCalendarsEvent(ctx context.Context, UserID uuid.UUID, visibilityLevels []string, startDate, endDate time.Time) ([]*models.CalendarEvents, error) {
 	logger.Infof("[GetUserCalendars] user=%s, start=%s, end=%s", UserID, startDate, endDate)
 	var allCalendars []*models.CalendarEvents
 
@@ -119,7 +119,7 @@ func (s *CalendarService) GetUserCalendars(ctx context.Context, UserID uuid.UUID
 	return allCalendars, nil
 }
 
-func (s *CalendarService) CreateCalendar(ctx context.Context, cal *models.CalendarEvents) error {
+func (s *CalendarService) CreateCalendarEvent(ctx context.Context, cal *models.CalendarEvents) error {
 	logger.Infof("[CreateCalendar] user=%s title=%s", cal.UserID, cal.Title)
 	if err := s.CalendarEventsRepo.CreateCalendarEvent(ctx, cal); err != nil {
 		logger.Errorf("[CreateCalendar] failed: %v", err)
@@ -130,7 +130,7 @@ func (s *CalendarService) CreateCalendar(ctx context.Context, cal *models.Calend
 	return nil
 }
 
-func (s *CalendarService) UpdateCalendar(ctx context.Context, UserID uuid.UUID, eventID uuid.UUID, req *dto.CalendarUpdateRequest) error {
+func (s *CalendarService) UpdateCalendarEvent(ctx context.Context, UserID uuid.UUID, eventID uuid.UUID, req *dto.CalendarUpdateRequest) error {
 	cal, err := s.CalendarEventsRepo.FindByID(ctx, eventID)
 	if err != nil {
 		return err
@@ -141,7 +141,7 @@ func (s *CalendarService) UpdateCalendar(ctx context.Context, UserID uuid.UUID, 
 
 	dto.UpdateCalendarModelFromRequest(cal, req)
 
-	if err := s.CalendarEventsRepo.UpdateCalendar(ctx, cal); err != nil {
+	if err := s.CalendarEventsRepo.UpdateCalendarEvent(ctx, cal); err != nil {
 		return err
 	}
 
@@ -149,7 +149,7 @@ func (s *CalendarService) UpdateCalendar(ctx context.Context, UserID uuid.UUID, 
 	return nil
 }
 
-func (s *CalendarService) DeleteCalendar(ctx context.Context, UserID uuid.UUID, eventID uuid.UUID) error {
+func (s *CalendarService) DeleteCalendarEvent(ctx context.Context, UserID uuid.UUID, eventID uuid.UUID) error {
 	cal, err := s.CalendarEventsRepo.FindByID(ctx, eventID)
 	if err != nil {
 		return err
@@ -158,7 +158,7 @@ func (s *CalendarService) DeleteCalendar(ctx context.Context, UserID uuid.UUID, 
 		return fmt.Errorf("unauthorized or not found")
 	}
 
-	if err := s.CalendarEventsRepo.DeleteCalendar(ctx, eventID); err != nil {
+	if err := s.CalendarEventsRepo.DeleteCalendarEvent(ctx, eventID); err != nil {
 		return err
 	}
 
