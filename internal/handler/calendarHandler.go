@@ -28,7 +28,7 @@ func (h *CalendarHandler) RegisterRoutes(r *gin.Engine) {
 	// 공개용: 다른 사용자가 보는 달력
 	// Profile 기반, 공개 여부 확인
 	me := r.Group("/me")
-	me.Use(middleware.AuthMiddleware())
+	me.Use(middleware.AccessTokenAuthMiddleware())
 	{
 		me.GET("/calendar", h.GetMyCalendarEvent)
 		me.POST("/calendar/events", h.CreateCalendarEvent)
@@ -38,21 +38,6 @@ func (h *CalendarHandler) RegisterRoutes(r *gin.Engine) {
 
 	users := r.Group("/users/:nickname")
 	users.GET("/calendar", h.GetUserCalendarEvent)
-
-	// r.GET("/profiles/:nickname/calendar", h.GetUserCalendar)
-
-	// // 인증 필요: 내 달력 및 이벤트 관리
-	// calendar := r.Group("/calendar")
-	// calendar.Use(middleware.AuthMiddleware())
-	// {
-	// 	// 내 전체 달력 조회
-	// 	calendar.GET("/me", h.GetMyCalendar)
-
-	// 	// 이벤트 CRUD
-	// 	calendar.POST("/events", h.CreateCalendar)
-	// 	calendar.PUT("/events/:eventId", h.UpdateCalendar)
-	// 	calendar.DELETE("/events/:eventId", h.DeleteCalendar)
-	// }
 }
 
 // ---------------------- Handler ----------------------

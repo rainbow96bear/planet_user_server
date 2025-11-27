@@ -27,7 +27,7 @@ func NewFollowHandler(profileService *service.ProfileService, followService *ser
 func (h *FollowHandler) RegisterRoutes(r *gin.Engine) {
 	// /me 그룹: 토큰 검증 필수
 	me := r.Group("/me")
-	me.Use(middleware.AuthMiddleware())
+	me.Use(middleware.AccessTokenAuthMiddleware())
 
 	// /me/follows 그룹: 팔로우/언팔로우/상태 확인 액션
 	// 리소스: /me/follows/:target_nickname (인증된 사용자의 팔로우 관계 리소스)

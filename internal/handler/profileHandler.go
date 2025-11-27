@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"errors"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
@@ -9,6 +10,7 @@ import (
 	"github.com/rainbow96bear/planet_user_server/internal/service"
 	"github.com/rainbow96bear/planet_user_server/middleware"
 	"github.com/rainbow96bear/planet_user_server/utils"
+	planet_err "github.com/rainbow96bear/planet_utils/errors"
 	"github.com/rainbow96bear/planet_utils/pkg/logger"
 )
 
@@ -26,9 +28,9 @@ func NewProfileHandler(profileService *service.ProfileService, followService *se
 
 // 🌐 라우팅 등록 (RESTful 및 중복 제거)
 func (h *ProfileHandler) RegisterRoutes(r *gin.Engine) {
-	// 1. /me 그룹: 인증된 사용자 전용 (AuthMiddleware 필수)
+	// 1. /me 그룹: 인증된 사용자 전용 (AccessTokenAuthMiddleware 필수)
 	me := r.Group("/me")
-	me.Use(middleware.AuthMiddleware())
+	me.Use(middleware.AccessTokenAuthMiddleware())
 	{
 		// 내 프로필 리소스 (Profile)
 		me.GET("/profile", h.GetMyProfileInfo) // GET /me/profile
@@ -36,13 +38,8 @@ func (h *ProfileHandler) RegisterRoutes(r *gin.Engine) {
 
 	}
 
-	// 2. /users 그룹: 공개된 사용자 정보 조회 전용 (AuthMiddleware 불필요)
-	// GetProfileInfo는 이 그룹을 사용하도록 통일합니다.
 	users := r.Group("/users/:nickname")
-	users.GET("", h.GetProfileInfo) // GET /users/:nickname
-
-	// *주의: 기존의 users.GET("",h.GetProfileInfo)와 profileGroup.GET("/:nickname", h.GetProfileInfo)는
-	// /users/:nickname 경로로 통일하고 AuthMiddleware를 제거했습니다.
+	users.GET("", h.GetProfileInfo)
 }
 
 // ---------------------- Handler ----------------------
@@ -117,15 +114,23 @@ func (h *ProfileHandler) UpdateProfile(c *gin.Context) {
 		return
 	}
 
-	// 업데이트할 닉네임은 요청 본문(req) 내에 있어야 합니다.
-	// 여기서는 현재 사용자의 닉네임을 다시 찾는 로직이 필요할 수 있으나,
-	// 편의상 기존의 service 호출 시 닉네임을 요구하는 부분을 수정하지 않고 임시로 빈 값으로 전달합니다.
-	// *실제 구현 시 service 단에서 authID를 사용하여 닉네임을 조회하거나, 닉네임 유효성 검증을 해야 합니다.
-	currentNickname := "" // nickname 파라미터를 제거했기 때문에 임시 처리
+	currentNickname := "" // 닉네임 파라미터가 DTO 내에 포함되었다고 가정하고 임시 처리
 
 	profileInfo, err := h.ProfileService.UpdateProfile(ctx, authID, currentNickname, &req)
 	if err != nil {
 		logger.Warnf("failed to update profile for %s: %v", authID, err)
+
+		// 🌟 핵심 수정: 오류 타입 확인 및 사용자 친화적 응답 🌟
+		if errors.Is(err, planet_err.ErrNicknameDuplicate) {
+			// HTTP 409 Conflict 상태 코드 (자원 충돌) 사용
+			c.JSON(http.StatusConflict, gin.H{
+				// 사용자에게 보여줄 간결한 메시지
+				"error": "사용자 이름을 업데이트하지 못했습니다. 해당 사용자 이름은 이미 사용 중일 수 있습니다. 다른 이름을 선택해 주세요.",
+			})
+			return
+		}
+
+		// 그 외의 일반적인 오류 처리
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to update profile"})
 		return
 	}

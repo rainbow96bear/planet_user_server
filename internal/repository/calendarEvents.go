@@ -36,16 +36,25 @@ func (r *CalendarEventsRepository) CreateCalendarEvent(ctx context.Context, even
 	logger.Infof("Creating calendar event for user: %s", event.UserID)
 
 	return r.DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		// 1. Calendar Event 삽입
 		if err := tx.Create(event).Error; err != nil {
 			return fmt.Errorf("failed to insert calendar event: %w", err)
 		}
 
-		// Todos EventID 설정
-		for i := range event.Todos {
-			event.Todos[i].EventID = event.ID
-		}
+		// 2. Todos 삽입 전, EventID와 ID 설정/재설정
 		if len(event.Todos) > 0 {
+			for i := range event.Todos {
+				// 🌟🌟🌟 핵심 수정: 각 Todo 항목에 새로운 UUID를 강제 할당합니다. 🌟🌟🌟
+				// DTO 변환 과정에서 잘못된 ID가 할당되었거나 재사용되었을 가능성 방지.
+				event.Todos[i].ID = uuid.New()
+
+				// EventID 설정 (이벤트 삽입 후 생성된 event.ID 사용)
+				event.Todos[i].EventID = event.ID
+			}
+
+			// Todos 목록 삽입
 			if err := tx.Create(&event.Todos).Error; err != nil {
+				// 🚨 로그에서 발생한 오류 위치
 				return fmt.Errorf("failed to insert todos: %w", err)
 			}
 		}
@@ -139,8 +148,8 @@ func (r *CalendarEventsRepository) FindCalendarsByVisibility(
 
 	var events []*models.CalendarEvents
 	if err := r.DB.WithContext(ctx).
-		Where("user_id = ? AND visibility IN ? AND start_time < ? AND end_time >= ?", UserID, visibilities, endAt, startAt).
-		Order("start_time ASC").
+		Where("user_id = ? AND visibility IN ? AND start_at < ? AND end_at >= ?", UserID, visibilities, endAt, startAt).
+		Order("start_at ASC").
 		Preload("Todos").
 		Find(&events).Error; err != nil {
 		return nil, fmt.Errorf("failed to query calendars by visibility: %w", err)

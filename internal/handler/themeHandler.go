@@ -23,9 +23,9 @@ func NewThemeHandler(profileService *service.ProfileService) *ThemeHandler {
 
 // 🌐 라우팅 등록 (RESTful 및 중복 제거)
 func (h *ThemeHandler) RegisterRoutes(r *gin.Engine) {
-	// 1. /me 그룹: 인증된 사용자 전용 (AuthMiddleware 필수)
+	// 1. /me 그룹: 인증된 사용자 전용 (AccessTokenAuthMiddleware 필수)
 	me := r.Group("/me")
-	me.Use(middleware.AuthMiddleware())
+	me.Use(middleware.AccessTokenAuthMiddleware())
 	{
 		// 내 테마 설정 리소스 (Theme)
 		me.GET("/theme", h.GetTheme)   // GET /me/theme

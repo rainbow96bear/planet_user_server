@@ -2,11 +2,13 @@ package service
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"github.com/google/uuid"
 	"github.com/rainbow96bear/planet_user_server/dto"
 	"github.com/rainbow96bear/planet_user_server/internal/repository"
+	planet_err "github.com/rainbow96bear/planet_utils/errors"
 )
 
 type ProfileService struct {
@@ -69,6 +71,10 @@ func (s *ProfileService) UpdateProfile(ctx context.Context, UserID uuid.UUID, ni
 
 	// 업데이트
 	if err := s.ProfilesRepo.UpdateProfile(ctx, updateModel); err != nil {
+		// 🌟 Repository에서 반환된 오류가 닉네임 중복인지 확인 🌟
+		if errors.Is(err, planet_err.ErrNicknameDuplicate) {
+			return nil, planet_err.ErrNicknameDuplicate // 중복 오류를 Handler로 전달
+		}
 		return nil, fmt.Errorf("failed to update profile: %w", err)
 	}
 
