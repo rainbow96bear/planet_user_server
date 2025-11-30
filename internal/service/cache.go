@@ -8,8 +8,9 @@ import (
 	"github.com/rainbow96bear/planet_utils/models"
 )
 
+// CalendarCacheItem: Todo가 없는 Event만 저장
 type CalendarCacheItem struct {
-	Data      []*models.CalendarEvents // DB 모델 그대로 캐시
+	Data      []*models.CalendarEvents
 	ExpiresAt time.Time
 }
 
@@ -38,7 +39,7 @@ func GetCalendarCache(UserID uuid.UUID, year int, month int, visibility string) 
 	return nil, false
 }
 
-// SetCalendarCache stores calendar data in cache
+// SetCalendarCache stores calendar data in cache (Event only)
 func SetCalendarCache(UserID uuid.UUID, year int, month int, visibility string, data []*models.CalendarEvents) {
 	key := buildCacheKey(UserID, year, month, visibility)
 	calendarCache.Store(key, CalendarCacheItem{

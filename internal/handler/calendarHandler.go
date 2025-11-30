@@ -31,7 +31,10 @@ func (h *CalendarHandler) RegisterRoutes(r *gin.Engine) {
 	me.Use(middleware.AccessTokenAuthMiddleware())
 	{
 		me.GET("/calendar", h.GetMyCalendarEvent)
+
 		me.POST("/calendar/events", h.CreateCalendarEvent)
+
+		me.GET("/calendar/events/:eventId", h.GetCalendarEventByID)
 		me.PUT("/calendar/events/:eventId", h.UpdateCalendarEvent)
 		me.DELETE("/calendar/events/:eventId", h.DeleteCalendarEvent)
 	}
@@ -112,6 +115,18 @@ func (h *CalendarHandler) CreateCalendarEvent(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request", "detail": err.Error()})
 		return
 	}
+	const maxTodoLength = 150
+	for _, todo := range req.Todos {
+		if len(todo.Content) > maxTodoLength {
+			errorMessage := fmt.Sprintf("Todo content length exceeds the maximum limit of %d characters.", maxTodoLength)
+			logger.Warnf("CreateCalendar validation failed (Todo content too long), UserID=%s", UserID)
+			c.JSON(http.StatusBadRequest, gin.H{
+				"error":   "validation failed",
+				"message": errorMessage,
+			})
+			return
+		}
+	}
 
 	calendar := dto.ToCalendarModelFromCreate(&req, UserID)
 	if err := h.CalendarService.CreateCalendarEvent(ctx, calendar); err != nil {
@@ -126,23 +141,59 @@ func (h *CalendarHandler) CreateCalendarEvent(c *gin.Context) {
 	})
 }
 
+func (h *CalendarHandler) GetCalendarEventByID(c *gin.Context) {
+	ctx := c.Request.Context()
+
+	eventIDStr := c.Param("eventId")
+
+	eventID, err := uuid.Parse(eventIDStr)
+	if err != nil {
+		logger.Warnf("Invalid event ID format")
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid event ID format"})
+		return
+	}
+
+	// 2. UserID 추출 (UserID는 uuid.UUID 타입이라고 가정)
+	UserID, _ := utils.GetUserID(c)
+
+	logger.Infof("GetCalendarEventByID start, UserID=%s, EventID=%s", UserID, eventID)
+	defer logger.Infof("GetCalendarEventByID end, UserID=%s, EventID=%s", UserID, eventID)
+
+	data, err := h.CalendarService.GetEventDetailWithTodosByID(ctx, eventID)
+
+	if err != nil {
+		logger.Errorf("GetEventDetailWithTodos failed, UserID=%s, EventID=%s, err=%v", UserID, eventID, err)
+
+		if err.Error() == "event not found" {
+			c.JSON(http.StatusNotFound, gin.H{"error": "Event not found"})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get event details"})
+		return
+	}
+
+	// 4. 성공 응답
+	c.JSON(http.StatusOK, data)
+}
+
 // 캘린더 업데이트
 func (h *CalendarHandler) UpdateCalendarEvent(c *gin.Context) {
 	ctx := c.Request.Context()
 	eventIDStr := c.Param("eventId")
-	UserID, err := utils.GetUserID(c)
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid eventId"})
-		return
-	}
-	logger.Infof("UpdateCalendar start, UserID=%s, eventID=%s", UserID, eventIDStr)
-	defer logger.Infof("UpdateCalendar end, UserID=%s, eventID=%s", UserID, eventIDStr)
 
 	eventID, err := uuid.Parse(eventIDStr)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid eventId"})
 		return
 	}
+
+	UserID, err := utils.GetUserID(c)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid eventId"})
+		return
+	}
+	logger.Infof("UpdateCalendar start, UserID=%s, eventID=%s", UserID, eventID)
+	defer logger.Infof("UpdateCalendar end, UserID=%s, eventID=%s", UserID, eventID)
 
 	var req dto.CalendarUpdateRequest
 	if err := c.ShouldBindJSON(&req); err != nil {

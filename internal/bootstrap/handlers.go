@@ -12,6 +12,7 @@ func InitHandlers(db *gorm.DB) map[string]router.RouteRegistrar {
 	profilesRepo := &repository.ProfilesRepository{DB: db}
 	followRepo := &repository.FollowsRepository{DB: db}
 	calendarEventsRepo := &repository.CalendarEventsRepository{DB: db}
+	todoRepo := &repository.TodosRepository{DB: db}
 
 	profileService := &service.ProfileService{
 		ProfilesRepo: profilesRepo,
@@ -26,10 +27,16 @@ func InitHandlers(db *gorm.DB) map[string]router.RouteRegistrar {
 		CalendarEventsRepo: calendarEventsRepo,
 	}
 
+	todoService := &service.TodoService{
+		TodosRepo: todoRepo,
+	}
+
 	return map[string]router.RouteRegistrar{
 		"profile":  handler.NewProfileHandler(profileService, followService),
 		"follow":   handler.NewFollowHandler(profileService, followService),
 		"calendar": handler.NewCalendarHandler(calendarService),
+		"plan":     handler.NewPlanHandler(calendarService),
 		"theme":    handler.NewThemeHandler(profileService),
+		"todo":     handler.NewTodoHandler(todoService),
 	}
 }

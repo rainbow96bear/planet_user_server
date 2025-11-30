@@ -1,28 +1,34 @@
 package dto
 
 import (
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
 	"github.com/rainbow96bear/planet_utils/models"
 )
 
-// ---------------------- DTO 구조 ----------------------
+const MaxTodoLength = 200
 
+// ---------------------- Calendar DTO 구조 ----------------------
+
+// CalendarInfo: 캘린더 이벤트 응답 구조
 type CalendarInfo struct {
 	EventID     uuid.UUID  `json:"eventId"`
-	UserID      string     `json:"UserID"` // UUID를 문자열로 전달
+	UserID      uuid.UUID  `json:"userId"`
 	Title       string     `json:"title"`
 	Description string     `json:"description"`
 	Emoji       string     `json:"emoji"`
 	StartAt     string     `json:"startAt"`
 	EndAt       string     `json:"endAt"`
 	Visibility  string     `json:"visibility"`
-	Todos       []TodoItem `json:"todos"`
+	Todos       []TodoItem `json:"todos"` // 💡 TodoItem은 todo_dto.go에서 가져옴
 	ImageURL    *string    `json:"imageUrl,omitempty"`
 	CreatedAt   time.Time  `json:"createdAt"`
 	UpdatedAt   time.Time  `json:"updatedAt"`
 }
+
+// ---------------------- 요청 DTO ----------------------
 
 type CalendarCreateRequest struct {
 	Title       string     `json:"title" binding:"required,max=255"`
@@ -31,7 +37,7 @@ type CalendarCreateRequest struct {
 	StartAt     string     `json:"startAt" binding:"required,datetime=2006-01-02"`
 	EndAt       string     `json:"endAt" binding:"required,datetime=2006-01-02,gtefield=StartAt"`
 	Visibility  string     `json:"visibility" binding:"required,oneof=public friends private"`
-	Todos       []TodoItem `json:"todos" binding:"omitempty,dive"`
+	Todos       []TodoItem `json:"todos" binding:"omitempty,dive"` // 💡 TodoItem은 todo_dto.go에서 가져옴
 	ImageURL    *string    `json:"imageUrl"`
 }
 
@@ -42,35 +48,28 @@ type CalendarUpdateRequest struct {
 	StartAt     *string     `json:"startAt,omitempty" binding:"omitempty,datetime=2006-01-02"`
 	EndAt       *string     `json:"endAt,omitempty" binding:"omitempty,datetime=2006-01-02"`
 	Visibility  *string     `json:"visibility,omitempty" binding:"omitempty,oneof=public friends private"`
-	Todos       *[]TodoItem `json:"todos,omitempty"`
+	Todos       *[]TodoItem `json:"todos,omitempty"` // 💡 TodoItem은 todo_dto.go에서 가져옴
 	ImageURL    *string     `json:"imageUrl,omitempty"`
 }
 
-type TodoItem struct {
-	EventID   *uuid.UUID `json:"eventId,omitempty"`
-	Text      string     `json:"text" binding:"required,max=255"`
-	Completed bool       `json:"completed"`
-}
-
-// ---------------------- 변환 함수 ----------------------
+// ------------------------------------------------------
+// 변환 함수
+// ------------------------------------------------------
 
 func ToCalendarInfo(cal *models.CalendarEvents) *CalendarInfo {
 	if cal == nil {
 		return nil
 	}
 
+	// Todos 변환 (ToTodoDTO는 이제 todo_dto.go에 정의되어 있어야 함)
 	todos := make([]TodoItem, len(cal.Todos))
 	for i, t := range cal.Todos {
-		todos[i] = TodoItem{
-			EventID:   &t.ID,
-			Text:      t.Content,
-			Completed: t.IsDone,
-		}
+		todos[i] = ToTodoDTO(t)
 	}
 
 	return &CalendarInfo{
 		EventID:     cal.ID,
-		UserID:      cal.UserID.String(),
+		UserID:      cal.UserID,
 		Title:       cal.Title,
 		Description: cal.Description,
 		Emoji:       cal.Emoji,
@@ -94,6 +93,10 @@ func ToCalendarInfoList(events []*models.CalendarEvents) []*CalendarInfo {
 	return result
 }
 
+// ------------------------------------------------------
+// Model 생성 / 업데이트 변환
+// ------------------------------------------------------
+
 func ToCalendarModelFromCreate(req *CalendarCreateRequest, userID uuid.UUID) *models.CalendarEvents {
 	cal := &models.CalendarEvents{
 		UserID:      userID,
@@ -106,15 +109,11 @@ func ToCalendarModelFromCreate(req *CalendarCreateRequest, userID uuid.UUID) *mo
 		ImageURL:    stringOrEmpty(req.ImageURL),
 	}
 
-	// Todos가 nil이 아니면 append로 안전하게 추가
-	if len(req.Todos) > 0 {
-		for _, t := range req.Todos {
-			cal.Todos = append(cal.Todos, &models.Todos{
-				UserID:  userID,
-				Content: t.Text,
-				IsDone:  t.Completed,
-				// EventID는 cal.ID로 나중에 GORM에서 자동 할당 가능
-			})
+	// Todos 존재 시 생성
+	for _, t := range req.Todos {
+		t.Content = strings.TrimSpace(t.Content)
+		if len(t.Content) > 0 {
+			cal.Todos = append(cal.Todos, ToTodoModel(t, userID))
 		}
 	}
 
@@ -122,40 +121,49 @@ func ToCalendarModelFromCreate(req *CalendarCreateRequest, userID uuid.UUID) *mo
 }
 
 func UpdateCalendarModelFromRequest(cal *models.CalendarEvents, req *CalendarUpdateRequest) {
+
 	if req.Title != nil {
 		cal.Title = *req.Title
 	}
+
 	if req.Description != nil {
 		cal.Description = *req.Description
 	}
+
 	if req.Emoji != nil {
 		cal.Emoji = *req.Emoji
 	}
+
 	if req.StartAt != nil {
 		cal.StartAt = parseDate(*req.StartAt)
 	}
+
 	if req.EndAt != nil {
 		cal.EndAt = parseDate(*req.EndAt)
 	}
+
 	if req.Visibility != nil {
 		cal.Visibility = *req.Visibility
 	}
+
 	if req.ImageURL != nil {
 		cal.ImageURL = stringOrEmpty(req.ImageURL)
 	}
+
 	if req.Todos != nil {
-		todos := make([]*models.Todos, len(*req.Todos))
+		newTodos := make([]*models.Todos, len(*req.Todos))
 		for i, t := range *req.Todos {
-			todos[i] = &models.Todos{
-				Content: t.Text,
-				IsDone:  t.Completed,
-			}
+			// 💡 ToTodoModel 함수를 사용하여 변환하거나, 인라인으로 모델 생성
+			newTodos[i] = ToTodoModel(t, cal.UserID)
 		}
-		cal.Todos = todos
+
+		cal.Todos = newTodos
 	}
 }
 
-// ---------------------- 헬퍼 함수 ----------------------
+// ------------------------------------------------------
+// Private Utility Functions
+// ------------------------------------------------------
 
 func formatDate(t time.Time) string {
 	if t.IsZero() {
