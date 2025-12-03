@@ -1,0 +1,59 @@
+# ----------------------------------------------------------------------
+# 1. 스키마 정의 (Schema Definition)
+# ----------------------------------------------------------------------
+# 모든 .graphqls 파일을 포함하도록 glob 패턴을 사용합니다.
+schema:
+  - graph/graphqls/**/*.graphqls
+
+# ----------------------------------------------------------------------
+# 2. 실행 코드 설정 (Execution Code - generated.go)
+# ----------------------------------------------------------------------
+exec:
+  package: graph
+  layout: single-file
+  filename: graph/generated.go
+
+# ----------------------------------------------------------------------
+# 3. 모델 설정 (Generated Models - models_gen.go)
+# ----------------------------------------------------------------------
+model:
+  filename: graph/model/models_gen.go
+  package: model
+
+# ----------------------------------------------------------------------
+# 4. 리졸버 설정 (Resolver Implementation)
+# ----------------------------------------------------------------------
+resolver:
+  package: graph
+  layout: follow-schema
+  dir: graph
+  filename_template: "{name}.resolvers.go"
+  
+# ----------------------------------------------------------------------
+# 5. 자동 바인딩 (MSA 공통 모델 연결)
+# ----------------------------------------------------------------------
+# Auth Server와 User Server가 공통으로 사용하는 모델(struct)을
+# planet_utils에서 가져와 GraphQL 타입에 자동으로 연결합니다.
+autobind:
+  - "github.com/your-repo/planet_utils/models"
+
+# ----------------------------------------------------------------------
+# 6. 타입 바인딩 (Custom Scalar Mapping)
+# ----------------------------------------------------------------------
+# GraphQL 스칼라 타입을 Go 타입 시스템에 매핑합니다.
+models:
+  ID:
+    model:
+      - github.com/99designs/gqlgen/graphql.ID
+  UUID:
+    model:
+      - github.com/99designs/gqlgen/graphql.UUID
+  Int:
+    model:
+      - github.com/99designs/gqlgen/graphql.Int32
+  Int64:
+    model:
+      - github.com/99designs/gqlgen/graphql.Int64
+  Time:
+    model:
+      - github.com/99designs/gqlgen/graphql.Time
