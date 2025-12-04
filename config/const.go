@@ -1,7 +1,11 @@
 package config
 
 var (
-	PORT                string
+	PORT           string
+	USER_GRPC_PORT string
+
+	AUTH_GRPC_SERVER_ADDR string
+
 	LOG_LEVEL           int16
 	DB_GRPC_SERVER_ADDR string
 	JWT_SECRET_KEY      string

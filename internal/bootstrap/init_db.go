@@ -1,4 +1,4 @@
-package userInit
+package bootstrap
 
 import (
 	"fmt"
@@ -10,10 +10,8 @@ import (
 	"gorm.io/gorm"
 )
 
-var DB *gorm.DB
-
-// InitDB initializes and returns a PostgreSQL database connection.
-func InitDB() (*gorm.DB, error) {
+// InitDatabase: PostgreSQL 데이터베이스 연결을 초기화하고 GORM DB 인스턴스를 반환합니다.
+func InitDatabase() (*gorm.DB, error) {
 	dsn := fmt.Sprintf(
 		"host=%s port=%s user=%s password=%s dbname=%s sslmode=disable TimeZone=Asia/Seoul",
 		config.DB_HOST,
@@ -46,6 +44,5 @@ func InitDB() (*gorm.DB, error) {
 
 	logger.Infof("✅ Successfully connected to PostgreSQL [%s:%s/%s]", config.DB_HOST, config.DB_PORT, config.DB_NAME)
 
-	DB = gormDB
 	return gormDB, nil
 }

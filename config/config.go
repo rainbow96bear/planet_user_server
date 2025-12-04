@@ -25,6 +25,10 @@ func InitConfig(mode string) {
 
 	// default config
 	PORT = getString("PORT")
+	USER_GRPC_PORT = getString("USER_GRPC_PORT")
+
+	AUTH_GRPC_SERVER_ADDR = getString("AUTH_GRPC_SERVER_ADDR")
+
 	LOG_LEVEL = getInt16("LOG_LEVEL")
 	DB_GRPC_SERVER_ADDR = getString("DB_GRPC_SERVER_ADDR")
 	JWT_SECRET_KEY = getString("JWT_SECRET_KEY")
