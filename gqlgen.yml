@@ -3,7 +3,7 @@
 # ----------------------------------------------------------------------
 # 모든 .graphqls 파일을 포함하도록 glob 패턴을 사용합니다.
 schema:
-  - graph/graphqls/*.graphqls
+  - graph/graphqls/**/*.graphqls
 
 # ----------------------------------------------------------------------
 # 2. 실행 코드 설정 (Execution Code - generated.go)
@@ -24,9 +24,9 @@ model:
 # 4. 리졸버 설정 (Resolver Implementation)
 # ----------------------------------------------------------------------
 resolver:
-  package: resolver
+  package: graph
   layout: follow-schema
-  dir: internal/resolver
+  dir: graph
   filename_template: "{name}.resolvers.go"
   
 # ----------------------------------------------------------------------
@@ -35,7 +35,7 @@ resolver:
 # Auth Server와 User Server가 공통으로 사용하는 모델(struct)을
 # planet_utils에서 가져와 GraphQL 타입에 자동으로 연결합니다.
 autobind:
-  - "github.com/rainbow96bear/planet_utils/models"
+  - "github.com/your-repo/planet_utils/models"
 
 # ----------------------------------------------------------------------
 # 6. 타입 바인딩 (Custom Scalar Mapping)
