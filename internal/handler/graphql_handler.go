@@ -6,6 +6,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/rainbow96bear/planet_user_server/graph"
 	"github.com/rainbow96bear/planet_user_server/internal/resolver"
+	"github.com/rainbow96bear/planet_user_server/middleware"
 )
 
 type GraphqlHandler struct {
@@ -29,10 +30,10 @@ func (h *GraphqlHandler) Graphql() gin.HandlerFunc {
 }
 
 func (h *GraphqlHandler) Playground() gin.HandlerFunc {
-	return gin.WrapH(playground.Handler("Planet Auth GraphQL", "/graphql"))
+	return gin.WrapH(playground.Handler("Planet User GraphQL", "/graphql"))
 }
 
 func (h *GraphqlHandler) RegisterRoutes(r *gin.Engine) {
-	r.POST("/graphql", h.Graphql())
+	r.POST("/graphql", middleware.AuthMiddleware(), h.Graphql())
 	r.GET("/playground", h.Playground())
 }

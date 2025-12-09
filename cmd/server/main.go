@@ -36,11 +36,10 @@ func init() {
 		os.Exit(0)
 	}
 	Mode = "dev"
-	fmt.Printf("auth_server Start \nVersion : %s \nGit Commit : %s\n", Version, GitCommit)
+	fmt.Printf("user_server Start \nVersion : %s \nGit Commit : %s\n", Version, GitCommit)
 	fmt.Printf("Build Mode : %s\n", Mode)
-	// 📌 실제 사용 가정: config.InitConfig(Mode) 및 logger.SetLevel(config.LOG_LEVEL)
-	// config.InitConfig(Mode)
-	// logger.SetLevel(config.LOG_LEVEL)
+	config.InitConfig(Mode)
+	logger.SetLevel(config.LOG_LEVEL)
 }
 
 func main() {
@@ -67,20 +66,20 @@ func main() {
 		}()
 	}
 
-	go grpcserver.RunGrpcServer()
-
-	// ----------------------------------------------------------------------
-	// HTTP/GraphQL 서버 실행 (Gin)
-	// ----------------------------------------------------------------------
-
-	// 💡 컨테이너에서 AuthService를 꺼내 GraphQL Resolver에 주입합니다.
-	// GraphQL Resolver는 DB 대신 Service 계층에 의존해야 합니다.
-
 	dependencies, err := bootstrap.InitDependencies(db)
 	if err != nil {
 		logger.Errorf("fail to init Dependencies %s", err.Error())
 		os.Exit(1)
 	}
+
+	go grpcserver.RunGrpcServer(db, dependencies)
+
+	// ----------------------------------------------------------------------
+	// HTTP/GraphQL 서버 실행 (Gin)
+	// ----------------------------------------------------------------------
+
+	// 💡 컨테이너에서 UserService를 꺼내 GraphQL Resolver에 주입합니다.
+	// GraphQL Resolver는 DB 대신 Service 계층에 의존해야 합니다.
 
 	handlers := bootstrap.InitHandlers(dependencies)
 
@@ -90,10 +89,10 @@ func main() {
 		}
 	})
 
-	authServerPort := fmt.Sprintf(":%s", config.PORT)
+	userServerPort := fmt.Sprintf(":%s", config.PORT)
 	logger.Infof("GraphQL/HTTP Server started on port %s", config.PORT)
 
-	if err := r.Run(authServerPort); err != nil {
+	if err := r.Run(userServerPort); err != nil {
 		logger.Errorf("failed to start http server: %v", err)
 		os.Exit(1)
 	}

@@ -2,6 +2,9 @@ package bootstrap
 
 import (
 	grpcclient "github.com/rainbow96bear/planet_user_server/internal/grpc/client"
+	"github.com/rainbow96bear/planet_user_server/internal/repository"
+	"github.com/rainbow96bear/planet_user_server/internal/resolver"
+	"github.com/rainbow96bear/planet_user_server/internal/service"
 	"gorm.io/gorm"
 )
 
@@ -9,19 +12,20 @@ type Dependencies struct {
 	Repos       *Repositories
 	GrpcClients *grpcclient.GrpcClients
 	Services    *Services
+	Resolver    *resolver.Resolver
 }
 
 type Repositories struct {
-	// User repository.UserRepository
+	Profile *repository.ProfileRepository
 }
 
 type Services struct {
-	// Auth  service.AuthServiceInterface
+	Profile service.ProfileServiceInterface
 }
 
 func InitDependencies(db *gorm.DB) (*Dependencies, error) {
 	// --- 1. Repository 초기화 ---
-	// userRepo := repository.NewUserRepository(db)
+	profileRepo := repository.NewProfilesRepository(db)
 
 	// --- 2. gRPC Clients 초기화 ---
 	grpcClients, err := grpcclient.NewGrpcClients()
@@ -30,16 +34,18 @@ func InitDependencies(db *gorm.DB) (*Dependencies, error) {
 	}
 
 	// --- 3. Service 초기화 ---
-	// authService := service.NewAuthService(grpcClients)
+	profileService := service.NewProfileService(db, profileRepo)
 
+	resolver := resolver.NewResolver(profileService)
 	// DI Container 패턴
 	return &Dependencies{
-		// Repos: &Repositories{
-		// 	User: userRepo,
-		// },
-		GrpcClients: grpcClients,
-		Services:    &Services{
-			// Auth:  authService,
+		Repos: &Repositories{
+			Profile: profileRepo,
 		},
+		GrpcClients: grpcClients,
+		Services: &Services{
+			Profile: profileService,
+		},
+		Resolver: resolver,
 	}, nil
 }

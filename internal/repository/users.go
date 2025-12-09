@@ -1,111 +1,102 @@
 package repository
 
-import (
-	"context"
-	"time"
+// type UsersRepository struct {
+// 	DB *gorm.DB
+// }
 
-	"github.com/rainbow96bear/planet_utils/models"
-	"github.com/rainbow96bear/planet_utils/pkg/logger"
-	"gorm.io/gorm"
-)
+// func (r *UsersRepository) BeginTx(ctx context.Context) (*gorm.DB, error) {
+// 	logger.Infof("UsersRepository: begin transaction")
 
-type UsersRepository struct {
-	DB *gorm.DB
-}
+// 	tx := r.DB.WithContext(ctx).Begin()
+// 	if tx.Error != nil {
+// 		logger.Errorf("UsersRepository: failed to start tx: %v", tx.Error)
+// 		return nil, tx.Error
+// 	}
 
-func (r *UsersRepository) BeginTx(ctx context.Context) (*gorm.DB, error) {
-	logger.Infof("UsersRepository: begin transaction")
+// 	logger.Infof("UsersRepository: transaction started successfully")
+// 	return tx, nil
+// }
 
-	tx := r.DB.WithContext(ctx).Begin()
-	if tx.Error != nil {
-		logger.Errorf("UsersRepository: failed to start tx: %v", tx.Error)
-		return nil, tx.Error
-	}
+// // 이메일로 유저 조회
+// func (r *UsersRepository) GetUserByEmail(ctx context.Context, email string) (*models.Users, error) {
+// 	logger.Infof("UsersRepository:GetUserByEmail email=%s", email)
 
-	logger.Infof("UsersRepository: transaction started successfully")
-	return tx, nil
-}
+// 	var user models.Users
+// 	err := r.DB.WithContext(ctx).Where("email = ?", email).First(&user).Error
 
-// 이메일로 유저 조회
-func (r *UsersRepository) GetUserByEmail(ctx context.Context, email string) (*models.Users, error) {
-	logger.Infof("UsersRepository:GetUserByEmail email=%s", email)
+// 	if err != nil {
+// 		logger.Errorf("UsersRepository:GetUserByEmail failed email=%s error=%v", email, err)
+// 		return nil, err
+// 	}
 
-	var user models.Users
-	err := r.DB.WithContext(ctx).Where("email = ?", email).First(&user).Error
+// 	logger.Infof("UsersRepository:GetUserByEmail success user_id=%s", user.ID)
+// 	return &user, nil
+// }
 
-	if err != nil {
-		logger.Errorf("UsersRepository:GetUserByEmail failed email=%s error=%v", email, err)
-		return nil, err
-	}
+// // UserID로 유저 조회
+// func (r *UsersRepository) GetUserByID(ctx context.Context, UserID string) (*models.Users, error) {
+// 	logger.Infof("UsersRepository:GetUserByID user_id=%s", UserID)
 
-	logger.Infof("UsersRepository:GetUserByEmail success user_id=%s", user.ID)
-	return &user, nil
-}
+// 	var user models.Users
+// 	err := r.DB.WithContext(ctx).
+// 		Where("id = ?", UserID).
+// 		First(&user).Error
 
-// UserID로 유저 조회
-func (r *UsersRepository) GetUserByID(ctx context.Context, UserID string) (*models.Users, error) {
-	logger.Infof("UsersRepository:GetUserByID user_id=%s", UserID)
+// 	if err != nil {
+// 		logger.Errorf("UsersRepository:GetUserByID failed user_id=%s error=%v", UserID, err)
+// 		return nil, err
+// 	}
 
-	var user models.Users
-	err := r.DB.WithContext(ctx).
-		Where("id = ?", UserID).
-		First(&user).Error
+// 	logger.Infof("UsersRepository:GetUserByID success user_id=%s", user.ID)
+// 	return &user, nil
+// }
 
-	if err != nil {
-		logger.Errorf("UsersRepository:GetUserByID failed user_id=%s error=%v", UserID, err)
-		return nil, err
-	}
+// // 유저 생성
+// func (r *UsersRepository) CreateUser(ctx context.Context, user *models.Users) error {
+// 	logger.Infof("UsersRepository:CreateUser email=%s", user.Email)
 
-	logger.Infof("UsersRepository:GetUserByID success user_id=%s", user.ID)
-	return &user, nil
-}
+// 	err := r.DB.WithContext(ctx).Create(user).Error
 
-// 유저 생성
-func (r *UsersRepository) CreateUser(ctx context.Context, user *models.Users) error {
-	logger.Infof("UsersRepository:CreateUser email=%s", user.Email)
+// 	if err != nil {
+// 		logger.Errorf("UsersRepository:CreateUser failed email=%s error=%v", user.Email, err)
+// 		return err
+// 	}
 
-	err := r.DB.WithContext(ctx).Create(user).Error
+// 	logger.Infof("UsersRepository:CreateUser success user_id=%s", user.ID)
+// 	return nil
+// }
 
-	if err != nil {
-		logger.Errorf("UsersRepository:CreateUser failed email=%s error=%v", user.Email, err)
-		return err
-	}
+// // 마지막 로그인 업데이트
+// func (r *UsersRepository) UpdateLastLogin(ctx context.Context, UserID string) error {
+// 	logger.Infof("UsersRepository:UpdateLastLogin user_id=%s", UserID)
 
-	logger.Infof("UsersRepository:CreateUser success user_id=%s", user.ID)
-	return nil
-}
+// 	now := time.Now()
+// 	err := r.DB.WithContext(ctx).Model(&models.Users{}).
+// 		Where("id = ?", UserID).
+// 		Update("last_login", &now).Error
 
-// 마지막 로그인 업데이트
-func (r *UsersRepository) UpdateLastLogin(ctx context.Context, UserID string) error {
-	logger.Infof("UsersRepository:UpdateLastLogin user_id=%s", UserID)
+// 	if err != nil {
+// 		logger.Errorf("UsersRepository:UpdateLastLogin failed user_id=%s error=%v", UserID, err)
+// 		return err
+// 	}
 
-	now := time.Now()
-	err := r.DB.WithContext(ctx).Model(&models.Users{}).
-		Where("id = ?", UserID).
-		Update("last_login", &now).Error
+// 	logger.Infof("UsersRepository:UpdateLastLogin success user_id=%s", UserID)
+// 	return nil
+// }
 
-	if err != nil {
-		logger.Errorf("UsersRepository:UpdateLastLogin failed user_id=%s error=%v", UserID, err)
-		return err
-	}
+// // Role 변경
+// func (r *UsersRepository) UpdateUserRole(ctx context.Context, UserID string, role string) error {
+// 	logger.Infof("UsersRepository:UpdateUserRole user_id=%s role=%s", UserID, role)
 
-	logger.Infof("UsersRepository:UpdateLastLogin success user_id=%s", UserID)
-	return nil
-}
+// 	err := r.DB.WithContext(ctx).Model(&models.Users{}).
+// 		Where("id = ?", UserID).
+// 		Update("role", role).Error
 
-// Role 변경
-func (r *UsersRepository) UpdateUserRole(ctx context.Context, UserID string, role string) error {
-	logger.Infof("UsersRepository:UpdateUserRole user_id=%s role=%s", UserID, role)
+// 	if err != nil {
+// 		logger.Errorf("UsersRepository:UpdateUserRole failed user_id=%s role=%s error=%v", UserID, role, err)
+// 		return err
+// 	}
 
-	err := r.DB.WithContext(ctx).Model(&models.Users{}).
-		Where("id = ?", UserID).
-		Update("role", role).Error
-
-	if err != nil {
-		logger.Errorf("UsersRepository:UpdateUserRole failed user_id=%s role=%s error=%v", UserID, role, err)
-		return err
-	}
-
-	logger.Infof("UsersRepository:UpdateUserRole success user_id=%s role=%s", UserID, role)
-	return nil
-}
+// 	logger.Infof("UsersRepository:UpdateUserRole success user_id=%s role=%s", UserID, role)
+// 	return nil
+// }

@@ -1,0 +1,30 @@
+# 입력 타입: 프로필 업데이트용
+input UpdateProfileInput {
+  nickname: String       # 닉네임은 optional
+  bio: String            # 소개(optional)
+  profileImage: String   # 프로필 이미지 URL(optional)
+  theme: String 
+}
+
+# 사용자 타입
+type UserProfile {
+  id: ID!                # 랜덤 UUID
+  userID: ID!            # Auth에서 사용하는 UUID
+  nickname: String!      # 필수
+  bio: String            # optional
+  profileImage: String   # optional
+  theme: String!         # 필수
+  followerCount: Int!    # 팔로워 수
+  followingCount: Int!   # 팔로잉 수
+}
+
+# 쿼리 타입
+extend type Query {
+  me: UserProfile!       # 현재 로그인한 사용자의 프로필 반환
+}
+
+# 뮤테이션 타입
+extend type Mutation {
+  updateProfile(input: UpdateProfileInput!): UserProfile!  
+  # 로그인한 사용자만 자기 프로필을 업데이트 가능
+}

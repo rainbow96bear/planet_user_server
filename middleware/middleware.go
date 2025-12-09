@@ -1,75 +1,66 @@
+// middleware/auth_middleware.go (Gin 전용으로 수정)
+
 package middleware
 
 import (
-	"net/http"
+	"context"
+	"errors"
+	"fmt"
 	"strings"
-	"time"
 
 	"github.com/gin-gonic/gin"
-	"github.com/rainbow96bear/planet_user_server/config"
-	"github.com/rainbow96bear/planet_utils/pkg/jwt"
-	"github.com/rainbow96bear/planet_utils/pkg/logger"
+	"github.com/golang-jwt/jwt/v5"
 )
 
-func LoggingMiddleware() gin.HandlerFunc {
+type contextKey string
+
+const ContextKeyAccessToken contextKey = "access_token"
+
+var (
+	ErrAuthorizationMissing = errors.New("authorization header missing")
+	ErrMalformedToken       = errors.New("malformed authorization token")
+)
+
+// 🚨 Gin 전용 미들웨어 함수: gin.HandlerFunc를 반환합니다.
+func AuthMiddleware() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		path := c.Request.URL.Path
-		method := c.Request.Method
+		authHeader := c.GetHeader("Authorization")
+		token := ""
 
-		logger.Infof("start request: %s %s", method, path)
-		start := time.Now()
+		if authHeader != "" && strings.HasPrefix(authHeader, "Bearer ") {
+			token = strings.TrimPrefix(authHeader, "Bearer ")
+		}
 
-		// 다음 핸들러 실행
+		// Context를 복사하고 토큰 값을 주입
+		ctx := context.WithValue(c.Request.Context(), ContextKeyAccessToken, token)
+
+		// 업데이트된 Context로 요청 객체 대체
+		c.Request = c.Request.WithContext(ctx)
+
+		// 다음 핸들러(GraphQL 서버)로 체인 전달
 		c.Next()
-
-		duration := time.Since(start)
-		logger.Infof("end request: %s %s, status=%d, duration=%s",
-			method, path, c.Writer.Status(), duration)
 	}
 }
 
-func AccessTokenAuthMiddleware() gin.HandlerFunc {
-	return func(c *gin.Context) {
-		authHeader := c.GetHeader("Authorization")
-		if authHeader == "" {
-			c.JSON(http.StatusUnauthorized, gin.H{"error": "missing Authorization header"})
-			c.Abort()
-			return
-		}
+func ExtractAccessToken(ctx context.Context) (*jwt.Token, error) {
+	accessToken, ok := ctx.Value(ContextKeyAccessToken).(string)
 
-		parts := strings.SplitN(authHeader, " ", 2)
-		if len(parts) != 2 || strings.ToLower(parts[0]) != "bearer" {
-			c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid Authorization header format"})
-			c.Abort()
-			return
-		}
-
-		tokenStr := parts[1]
-
-		// JWT 검증
-		claims, err := jwt.ParseAndVerifyJWT(tokenStr, config.JWT_SECRET_KEY)
-		logger.Debugf("tokenStr : %s", tokenStr)
-		logger.Debugf("claims : %v", claims)
-		if err != nil {
-			logger.Errorf("invalid token: %v", err)
-			c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid or expired token"})
-			c.Abort()
-			return
-		}
-
-		// 필수 claim 확인
-		UserID, ok1 := claims["user_uuid"].(string)
-		nickname, ok2 := claims["nickname"].(string)
-		if !ok1 || !ok2 {
-			c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid token claims"})
-			c.Abort()
-			return
-		}
-
-		// Context에 저장 (핸들러에서 사용 가능)
-		c.Set("user_uuid", UserID)
-		c.Set("nickname", nickname)
-
-		c.Next()
+	if !ok || accessToken == "" {
+		return nil, ErrAuthorizationMissing
 	}
+
+	tokenString := strings.TrimPrefix(accessToken, "Bearer ")
+
+	if tokenString == "" {
+		tokenString = accessToken
+	}
+
+	if tokenString == "" {
+		return nil, ErrMalformedToken
+	}
+	token, _, err := jwt.NewParser().ParseUnverified(tokenString, jwt.MapClaims{})
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse token: %w", err)
+	}
+	return token, nil
 }

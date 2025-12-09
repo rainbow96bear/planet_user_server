@@ -1,6 +1,6 @@
 package resolver
 
-import grpcclient "github.com/rainbow96bear/planet_user_server/internal/grpc/client"
+import "github.com/rainbow96bear/planet_user_server/internal/service"
 
 // This file will not be regenerated automatically.
 //
@@ -8,12 +8,13 @@ import grpcclient "github.com/rainbow96bear/planet_user_server/internal/grpc/cli
 // here.
 
 type Resolver struct {
-	GrpcClients *grpcclient.GrpcClients
-	// AuthService *auth.Service
+	ProfileService service.ProfileServiceInterface
 }
 
-func NewResolver(gc *grpcclient.GrpcClients) *Resolver {
+func NewResolver(
+	profileSvc service.ProfileServiceInterface,
+) *Resolver {
 	return &Resolver{
-		GrpcClients: gc,
+		ProfileService: profileSvc,
 	}
 }

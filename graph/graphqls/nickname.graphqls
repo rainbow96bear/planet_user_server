@@ -1,0 +1,11 @@
+# nickname.graphql
+
+extend type Query {
+  # 닉네임 사용 가능 여부 확인
+  checkNicknameAvailability(nickname: String!): NicknameAvailability!
+}
+
+type NicknameAvailability {
+  available: Boolean!
+  message: String
+}
