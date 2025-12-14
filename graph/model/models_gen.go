@@ -2,6 +2,41 @@
 
 package model
 
+import (
+	"bytes"
+	"fmt"
+	"io"
+	"strconv"
+	"time"
+)
+
+type Calendar struct {
+	ID          string             `json:"id"`
+	Title       string             `json:"title"`
+	Emoji       *string            `json:"emoji,omitempty"`
+	Description *string            `json:"description,omitempty"`
+	StartAt     time.Time          `json:"startAt"`
+	EndAt       time.Time          `json:"endAt"`
+	Visibility  CalendarVisibility `json:"visibility"`
+	Todos       []*Todo            `json:"todos"`
+	CreatedAt   time.Time          `json:"createdAt"`
+	UpdatedAt   time.Time          `json:"updatedAt"`
+}
+
+type CreateCalendarInput struct {
+	Title       string              `json:"title"`
+	Emoji       *string             `json:"emoji,omitempty"`
+	Description *string             `json:"description,omitempty"`
+	StartAt     time.Time           `json:"startAt"`
+	EndAt       time.Time           `json:"endAt"`
+	Visibility  *CalendarVisibility `json:"visibility,omitempty"`
+	Todos       []*CreateTodoInput  `json:"todos,omitempty"`
+}
+
+type CreateTodoInput struct {
+	Content string `json:"content"`
+}
+
 type Mutation struct {
 }
 
@@ -13,6 +48,24 @@ type NicknameAvailability struct {
 type Query struct {
 }
 
+type Todo struct {
+	ID        string    `json:"id"`
+	Content   string    `json:"content"`
+	IsDone    bool      `json:"isDone"`
+	CreatedAt time.Time `json:"createdAt"`
+	UpdatedAt time.Time `json:"updatedAt"`
+}
+
+type UpdateCalendarInput struct {
+	Title       *string             `json:"title,omitempty"`
+	Emoji       *string             `json:"emoji,omitempty"`
+	Description *string             `json:"description,omitempty"`
+	StartAt     *time.Time          `json:"startAt,omitempty"`
+	EndAt       *time.Time          `json:"endAt,omitempty"`
+	Visibility  *CalendarVisibility `json:"visibility,omitempty"`
+	Todos       []*UpdateTodoInput  `json:"todos,omitempty"`
+}
+
 type UpdateProfileInput struct {
 	Nickname     *string `json:"nickname,omitempty"`
 	Bio          *string `json:"bio,omitempty"`
@@ -20,13 +73,78 @@ type UpdateProfileInput struct {
 	Theme        *string `json:"theme,omitempty"`
 }
 
+type UpdateTodoInput struct {
+	ID      *string `json:"id,omitempty"`
+	Content *string `json:"content,omitempty"`
+	IsDone  *bool   `json:"isDone,omitempty"`
+}
+
 type UserProfile struct {
-	ID             string  `json:"id"`
-	UserID         string  `json:"userID"`
-	Nickname       string  `json:"nickname"`
-	Bio            *string `json:"bio,omitempty"`
-	ProfileImage   *string `json:"profileImage,omitempty"`
-	Theme          string  `json:"theme"`
-	FollowerCount  int32   `json:"followerCount"`
-	FollowingCount int32   `json:"followingCount"`
+	ID             string    `json:"id"`
+	UserID         string    `json:"userID"`
+	Nickname       string    `json:"nickname"`
+	Bio            *string   `json:"bio,omitempty"`
+	ProfileImage   *string   `json:"profileImage,omitempty"`
+	Theme          string    `json:"theme"`
+	FollowerCount  int32     `json:"followerCount"`
+	FollowingCount int32     `json:"followingCount"`
+	CreatedAt      time.Time `json:"createdAt"`
+	UpdatedAt      time.Time `json:"updatedAt"`
+}
+
+type CalendarVisibility string
+
+const (
+	CalendarVisibilityPublic  CalendarVisibility = "public"
+	CalendarVisibilityFriends CalendarVisibility = "friends"
+	CalendarVisibilityPrivate CalendarVisibility = "private"
+)
+
+var AllCalendarVisibility = []CalendarVisibility{
+	CalendarVisibilityPublic,
+	CalendarVisibilityFriends,
+	CalendarVisibilityPrivate,
+}
+
+func (e CalendarVisibility) IsValid() bool {
+	switch e {
+	case CalendarVisibilityPublic, CalendarVisibilityFriends, CalendarVisibilityPrivate:
+		return true
+	}
+	return false
+}
+
+func (e CalendarVisibility) String() string {
+	return string(e)
+}
+
+func (e *CalendarVisibility) UnmarshalGQL(v any) error {
+	str, ok := v.(string)
+	if !ok {
+		return fmt.Errorf("enums must be strings")
+	}
+
+	*e = CalendarVisibility(str)
+	if !e.IsValid() {
+		return fmt.Errorf("%s is not a valid CalendarVisibility", str)
+	}
+	return nil
+}
+
+func (e CalendarVisibility) MarshalGQL(w io.Writer) {
+	fmt.Fprint(w, strconv.Quote(e.String()))
+}
+
+func (e *CalendarVisibility) UnmarshalJSON(b []byte) error {
+	s, err := strconv.Unquote(string(b))
+	if err != nil {
+		return err
+	}
+	return e.UnmarshalGQL(s)
+}
+
+func (e CalendarVisibility) MarshalJSON() ([]byte, error) {
+	var buf bytes.Buffer
+	e.MarshalGQL(&buf)
+	return buf.Bytes(), nil
 }

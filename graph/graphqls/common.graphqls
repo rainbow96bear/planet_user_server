@@ -3,6 +3,8 @@ schema {
   mutation: Mutation
 }
 
+scalar Time
+
 type Query {
   _empty: String
 }

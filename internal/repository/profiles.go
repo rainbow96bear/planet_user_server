@@ -263,3 +263,12 @@ func (r *ProfileRepository) GetMyProfileInfo(ctx context.Context, userID uuid.UU
 	}
 	return &p, nil
 }
+
+func (r *ProfileRepository) GetUserProfileInfo(ctx context.Context, userID uuid.UUID) (*models.Profile, error) {
+	db := r.getDB(ctx)
+	var p models.Profile
+	if err := db.WithContext(ctx).Where("user_id = ?", userID).First(&p).Error; err != nil {
+		return nil, err
+	}
+	return &p, nil
+}

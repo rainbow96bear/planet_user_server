@@ -79,55 +79,6 @@ package handler
 // 	c.JSON(http.StatusOK, data)
 // }
 
-// // 내 캘린더 조회
-// func (h *CalendarHandler) GetMyCalendarEvent(c *gin.Context) {
-// 	ctx := c.Request.Context()
-// 	UserID, _ := utils.GetUserID(c)
-// 	logger.Infof("GetMyCalendar start, UserID=%s", UserID)
-// 	defer logger.Infof("GetMyCalendar end, UserID=%s", UserID)
-
-// 	year, month, err := parseYearMonth(c)
-// 	if err != nil {
-// 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-// 		return
-// 	}
-
-// 	data, err := h.CalendarService.GetMyCalendarData(ctx, UserID, year, month)
-// 	if err != nil {
-// 		logger.Errorf("GetMyCalendar failed, UserID=%s, err=%v", UserID, err)
-// 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to get calendars"})
-// 		return
-// 	}
-
-// 	c.JSON(http.StatusOK, data)
-// }
-
-// // 캘린더 생성
-// func (h *CalendarHandler) CreateCalendarEvent(c *gin.Context) {
-// 	ctx := c.Request.Context()
-// 	UserID, _ := utils.GetUserID(c)
-// 	logger.Infof("CreateCalendar start, UserID=%s", UserID)
-// 	defer logger.Infof("CreateCalendar end, UserID=%s", UserID)
-
-// 	var req dto.CalendarCreateRequest
-// 	if err := c.ShouldBindJSON(&req); err != nil {
-// 		logger.Warnf("CreateCalendar invalid request, UserID=%s, err=%v", UserID, err)
-// 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request", "detail": err.Error()})
-// 		return
-// 	}
-// 	const maxTodoLength = 150
-// 	for _, todo := range req.Todos {
-// 		if len(todo.Content) > maxTodoLength {
-// 			errorMessage := fmt.Sprintf("Todo content length exceeds the maximum limit of %d characters.", maxTodoLength)
-// 			logger.Warnf("CreateCalendar validation failed (Todo content too long), UserID=%s", UserID)
-// 			c.JSON(http.StatusBadRequest, gin.H{
-// 				"error":   "validation failed",
-// 				"message": errorMessage,
-// 			})
-// 			return
-// 		}
-// 	}
-
 // 	calendar := dto.ToCalendarModelFromCreate(&req, UserID)
 // 	if err := h.CalendarService.CreateCalendarEvent(ctx, calendar); err != nil {
 // 		logger.Errorf("CreateCalendar failed, UserID=%s, err=%v", UserID, err)

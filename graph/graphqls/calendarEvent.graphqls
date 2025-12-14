@@ -1,0 +1,111 @@
+# ------------------------------------
+# Query
+# ------------------------------------
+extend type Query {
+  # 로그인한 사용자의 월별 일정 조회
+  myCalendarEvents(
+    year: Int!
+    month: Int!
+  ): [Calendar!]!
+
+  # 로그인한 사용자의 단건 일정 조회 (eventId 기준)
+  myCalendarEvent(
+    eventId: ID!
+  ): Calendar!
+
+  # 로그인한 사용자의 특정 날짜 일정 조회 (추가)
+  myCalendarEventsByDate(
+    date: Time!
+  ): [Calendar!]!
+
+  # 특정 사용자의 월별 일정 조회 (public / friends)
+  userCalendarEvents(
+    userId: ID!
+    year: Int!
+    month: Int!
+  ): [Calendar!]!
+}
+
+# ------------------------------------
+# Mutation
+# ------------------------------------
+extend type Mutation {
+  createCalendarEvent(
+    input: CreateCalendarInput!
+  ): Calendar!
+
+  updateCalendarEvent(
+    eventId: ID!
+    input: UpdateCalendarInput!
+  ): Calendar!
+
+  deleteCalendarEvent(
+    eventId: ID!
+  ): Boolean!
+}
+
+# ------------------------------------
+# Types
+# ------------------------------------
+type Calendar {
+  id: ID!
+  title: String!
+  emoji: String
+  description: String
+  startAt: Time!
+  endAt: Time!
+  visibility: CalendarVisibility!
+  todos: [Todo!]!
+  createdAt: Time!
+  updatedAt: Time!
+}
+
+type Todo {
+  id: ID!
+  content: String!
+  isDone: Boolean!
+  createdAt: Time!
+  updatedAt: Time!
+}
+
+# ------------------------------------
+# Inputs
+# ------------------------------------
+input CreateCalendarInput {
+  title: String!
+  emoji: String
+  description: String
+  startAt: Time!
+  endAt: Time!
+  visibility: CalendarVisibility = public
+  todos: [CreateTodoInput!]
+}
+
+input UpdateCalendarInput {
+  title: String
+  emoji: String
+  description: String
+  startAt: Time
+  endAt: Time
+  visibility: CalendarVisibility
+  todos: [UpdateTodoInput!]
+}
+
+input CreateTodoInput {
+  content: String!
+}
+
+input UpdateTodoInput {
+  id: ID
+  content: String
+  isDone: Boolean
+}
+
+# ------------------------------------
+# Enums
+# ------------------------------------
+enum CalendarVisibility {
+  public
+  friends
+  private
+}

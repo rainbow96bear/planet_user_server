@@ -21,6 +21,7 @@ type ProfileServiceInterface interface {
 	CreateProfile(ctx context.Context, req dto.CreateProfileRequest) (*dto.ProfileResponse, error)
 	UpdateProfile(ctx context.Context, userID uuid.UUID, req *dto.ProfileUpdate) (*dto.UserProfile, error)
 	GetMyProfileInfo(ctx context.Context, userID uuid.UUID) (*dto.UserProfile, error)
+	GetUserProfileInfo(ctx context.Context, userID uuid.UUID) (*dto.UserProfile, error)
 }
 
 type ProfileService struct {
@@ -142,6 +143,25 @@ func (s *ProfileService) CreateProfile(ctx context.Context, req dto.CreateProfil
 // // 내 프로필 조회
 func (s *ProfileService) GetMyProfileInfo(ctx context.Context, userID uuid.UUID) (*dto.UserProfile, error) {
 	profile, err := s.ProfilesRepo.GetMyProfileInfo(ctx, userID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get profile: %w", err)
+	}
+
+	// 모델 → DTO 변환
+	return &dto.UserProfile{
+		ID:             profile.ID,
+		UserID:         profile.UserID,
+		Nickname:       profile.Nickname,
+		Bio:            profile.Bio,
+		ProfileImage:   profile.ProfileImage,
+		FollowerCount:  profile.FollowerCount,
+		FollowingCount: profile.FollowingCount,
+		Theme:          profile.Theme,
+	}, nil
+}
+
+func (s *ProfileService) GetUserProfileInfo(ctx context.Context, userID uuid.UUID) (*dto.UserProfile, error) {
+	profile, err := s.ProfilesRepo.GetUserProfileInfo(ctx, userID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get profile: %w", err)
 	}

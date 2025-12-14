@@ -1,11 +1,50 @@
 package service
 
-// type CalendarService struct {
-// 	CalendarEventsRepo *repository.CalendarEventsRepository
-// 	TodosRepo          *repository.TodosRepository
-// 	ProfilesRepo       *repository.ProfilesRepository
-// 	FollowsRepo        *repository.FollowsRepository
-// }
+import (
+	"context"
+	"errors"
+	"fmt"
+	"time"
+
+	"github.com/google/uuid"
+	"github.com/rainbow96bear/planet_user_server/graph/model"
+	"github.com/rainbow96bear/planet_user_server/internal/mapper"
+	"github.com/rainbow96bear/planet_user_server/internal/models"
+	"github.com/rainbow96bear/planet_user_server/internal/repository"
+	"github.com/rainbow96bear/planet_utils/pkg/logger"
+	"gorm.io/gorm"
+)
+
+type CalendarServiceInterface interface {
+	CreateCalendarEvent(ctx context.Context, cal *models.CalendarEvent) (*models.CalendarEvent, error)
+	GetMyCalendarEvents(
+		ctx context.Context,
+		userID uuid.UUID,
+		year, month int) ([]*models.CalendarEvent, error)
+	GetMyCalendarEventsByDate(
+		ctx context.Context,
+		userID uuid.UUID,
+		date time.Time) ([]*model.Calendar, error)
+}
+
+type CalendarService struct {
+	DB                 *gorm.DB
+	ProfilesRepo       *repository.ProfileRepository
+	CalendarEventsRepo *repository.CalendarEventsRepository
+	// FollowsRepo        *repository.FollowsRepoitory
+}
+
+func NewCalendarService(
+	db *gorm.DB,
+	profilesRepo *repository.ProfileRepository,
+	calendarRepo *repository.CalendarEventsRepository,
+) CalendarServiceInterface {
+	return &CalendarService{
+		DB:                 db,
+		ProfilesRepo:       profilesRepo,
+		CalendarEventsRepo: calendarRepo,
+	}
+}
 
 // ----------------------------
 // Handler용 고수준 함수 (월별/Event 전용)
@@ -50,24 +89,28 @@ package service
 // }
 
 // // 내 캘린더 조회 (월별, Event만)
-// func (s *CalendarService) GetMyCalendarData(ctx context.Context, UserID uuid.UUID, year, month int) (map[string]interface{}, error) {
-// 	logger.Infof("[GetMyCalendarData] UserID=%s, year=%d month=%d", UserID, year, month)
+func (s *CalendarService) GetMyCalendarEvents(
+	ctx context.Context,
+	userID uuid.UUID,
+	year, month int,
+) ([]*models.CalendarEvent, error) {
 
-// 	startDate := time.Date(year, time.Month(month), 1, 0, 0, 0, 0, time.UTC)
-// 	endDate := startDate.AddDate(0, 1, 0)
+	logger.Infof(
+		"[GetMyCalendarEvents] userID=%s year=%d month=%d",
+		userID, year, month,
+	)
 
-// 	// 💡 Todo가 없는 Event만 조회 (캐시 활용)
-// 	calendars, err := s.GetEventsWithoutTodos(ctx, UserID, []string{"public", "friends", "private"}, startDate, endDate)
-// 	if err != nil {
-// 		return nil, err
-// 	}
+	start := time.Date(year, time.Month(month), 1, 0, 0, 0, 0, time.UTC)
+	end := start.AddDate(0, 1, 0)
 
-// 	return map[string]interface{}{
-// 		"events":    ToDTOList(calendars),
-// 		"monthData": s.GenerateMonthData(startDate),
-// 		// "completionData": 월별 조회에서는 Todo가 없으므로 반환하지 않음
-// 	}, nil
-// }
+	return s.GetEventsWithoutTodos(
+		ctx,
+		userID,
+		[]string{"public", "friends", "private"},
+		start,
+		end,
+	)
+}
 
 // func (s *CalendarService) GetEventDetailWithTodosByID(ctx context.Context, eventID uuid.UUID) (*dto.CalendarInfo, error) {
 // 	// 💡 UserID 매개변수 제거: 권한 확인을 수행하지 않으므로 필요하지 않습니다.
@@ -96,27 +139,23 @@ package service
 // // ----------------------------
 
 // // 내 일일 계획 조회 (일별, Event + Todo 포함, PlanHandler에서 호출)
-// func (s *CalendarService) GetMyCalendarDailyData(ctx context.Context, UserID uuid.UUID, date time.Time) (map[string]interface{}, error) {
-// 	logger.Infof("[GetMyCalendarDailyData] UserID=%s, date=%s", UserID, date.Format("2006-01-02"))
+func (s *CalendarService) GetMyCalendarEventsByDate(ctx context.Context, userID uuid.UUID, date time.Time) ([]*model.Calendar, error) {
+	logger.Infof("[GetMyCalendarEventsByDate] UserID=%s, date=%s", userID, date.Format("2006-01-02"))
 
-// 	// 조회 범위: 해당 일 00:00:00 부터 다음 날 00:00:00 까지
-// 	startDate := time.Date(date.Year(), date.Month(), date.Day(), 0, 0, 0, 0, time.UTC)
-// 	endDate := startDate.AddDate(0, 0, 1)
+	// 조회 범위: 해당 일 00:00:00 부터 다음 날 00:00:00 까지
+	startDate := time.Date(date.Year(), date.Month(), date.Day(), 0, 0, 0, 0, time.UTC)
+	endDate := startDate.AddDate(0, 0, 1)
 
-// 	// 💡 Event와 Todo를 모두 포함하여 DB에서 조회 (캐시 미사용)
-// 	calendars, err := s.CalendarEventsRepo.FindCalendarsWithTodos(ctx, UserID, []string{"public", "friends", "private"}, startDate, endDate)
-// 	if err != nil {
-// 		return nil, err
-// 	}
+	// Event와 Todo를 모두 포함하여 DB에서 조회 (캐시 미사용)
+	calendars, err := s.CalendarEventsRepo.FindCalendarsWithTodos(ctx, userID, []string{"public", "friends", "private"}, startDate, endDate)
+	if err != nil {
+		logger.Errorf("[GetMyCalendarEventsByDate] FindCalendarsWithTodos failed: %v", err)
+		return nil, errors.New("failed to get calendar events")
+	}
 
-// 	// CalculateCompletionData를 사용하여 일별 달성률 데이터를 포함할 수 있습니다.
-// 	completionData := s.CalculateCompletionData(calendars)
-
-// 	return map[string]interface{}{
-// 		"dailyPlans":     ToDTOList(calendars),
-// 		"completionData": completionData,
-// 	}, nil
-// }
+	// GraphQL 모델 변환
+	return mapper.ToCalendarGraphQLList(calendars), nil
+}
 
 // // 다른 사람 일일 계획 조회 (일별, Event + Todo 포함, PlanHandler에서 호출)
 // func (s *CalendarService) GetUserCalendarDailyData(ctx context.Context, nickname string, authID uuid.UUID, date time.Time) (map[string]interface{}, error) {
@@ -177,61 +216,70 @@ package service
 // // 기본 조회 함수 (캐시 활용)
 // // ----------------------------
 
-// // GetEventsWithoutTodos: 월별 캘린더 뷰를 위해 Todo가 없는 Event만 조회하고 캐시 사용
-// func (s *CalendarService) GetEventsWithoutTodos(ctx context.Context, UserID uuid.UUID, visibilityLevels []string, startDate, endDate time.Time) ([]*models.CalendarEvents, error) {
-// 	logger.Infof("[GetEventsWithoutTodos] user=%s, start=%s, end=%s", UserID, startDate, endDate)
-// 	var allCalendars []*models.CalendarEvents
+// GetEventsWithoutTodos: 월별 캘린더 뷰를 위해 Todo가 없는 Event만 조회하고 캐시 사용
+func (s *CalendarService) GetEventsWithoutTodos(ctx context.Context, UserID uuid.UUID, visibilityLevels []string, startDate, endDate time.Time) ([]*models.CalendarEvent, error) {
+	logger.Infof("[GetEventsWithoutTodos] user=%s, start=%s, end=%s", UserID, startDate, endDate)
+	var allCalendars []*models.CalendarEvent
 
-// 	remainingVis := make([]string, 0)
+	remainingVis := make([]string, 0)
 
-// 	// 캐시 조회
-// 	for _, vis := range visibilityLevels {
-// 		if cached, ok := GetCalendarCache(UserID, startDate.Year(), int(startDate.Month()), vis); ok {
-// 			allCalendars = append(allCalendars, cached...)
-// 		} else {
-// 			remainingVis = append(remainingVis, vis)
-// 		}
-// 	}
+	for _, vis := range visibilityLevels {
+		remainingVis = append(remainingVis, vis)
+	}
 
-// 	if len(remainingVis) > 0 {
-// 		// 💡 Repository에서 Todo 없이 Event만 조회하는 메서드 사용 가정
-// 		dbCalendars, err := s.CalendarEventsRepo.FindEventsWithoutTodosByVisibility(ctx, UserID, remainingVis, startDate, endDate)
-// 		if err != nil {
-// 			return nil, fmt.Errorf("db error: %w", err)
-// 		}
+	if len(remainingVis) > 0 {
+		// 💡 Repository에서 Todo 없이 Event만 조회하는 메서드 사용 가정
+		dbCalendars, err := s.CalendarEventsRepo.FindEventsWithoutTodosByVisibility(ctx, UserID, remainingVis, startDate, endDate)
+		if err != nil {
+			return nil, fmt.Errorf("db error: %w", err)
+		}
 
-// 		for _, vis := range remainingVis {
-// 			filtered := make([]*models.CalendarEvents, 0)
-// 			for _, c := range dbCalendars {
-// 				if c.Visibility == vis {
-// 					filtered = append(filtered, c)
-// 				}
-// 			}
-// 			// 💡 Todo가 없는 Event만 캐시에 저장
-// 			SetCalendarCache(UserID, startDate.Year(), int(startDate.Month()), vis, filtered)
-// 			allCalendars = append(allCalendars, filtered...)
-// 		}
-// 	}
+		for _, vis := range remainingVis {
+			filtered := make([]*models.CalendarEvent, 0)
+			for _, c := range dbCalendars {
+				if c.Visibility == vis {
+					filtered = append(filtered, c)
+				}
+			}
+			allCalendars = append(allCalendars, filtered...)
+		}
+	}
 
-// 	logger.Infof("[GetEventsWithoutTodos] retrieved %d events", len(allCalendars))
-// 	return allCalendars, nil
-// }
+	logger.Infof("[GetEventsWithoutTodos] retrieved %d events", len(allCalendars))
+	return allCalendars, nil
+}
 
 // // ----------------------------
 // // 기본 CRUD (캐시 무효화 포함)
 // // ----------------------------
 
-// func (s *CalendarService) CreateCalendarEvent(ctx context.Context, cal *models.CalendarEvents) error {
-// 	logger.Infof("[CreateCalendar] user=%s title=%s", cal.UserID, cal.Title)
-// 	if err := s.CalendarEventsRepo.CreateCalendarEvent(ctx, cal); err != nil {
-// 		logger.Errorf("[CreateCalendar] failed: %v", err)
-// 		return err
-// 	}
-// 	// Event 생성 시 해당 월의 모든 가시성 캐시를 삭제
-// 	ClearCache(cal.UserID, cal.StartAt.Year(), int(cal.StartAt.Month()))
-// 	logger.Infof("[CreateCalendar] successfully created calendar event: %s", cal.ID)
-// 	return nil
-// }
+func (s *CalendarService) CreateCalendarEvent(
+	ctx context.Context,
+	cal *models.CalendarEvent,
+) (*models.CalendarEvent, error) {
+
+	logger.Infof("[CreateCalendar] user=%s title=%s", cal.UserID, cal.Title)
+
+	created, err := s.CalendarEventsRepo.CreateCalendarEvent(ctx, cal)
+	if err != nil {
+		logger.Errorf("[CreateCalendar] failed: %v", err)
+		return nil, err
+	}
+
+	// 해당 월 캐시 삭제
+	// ClearCache(
+	// 	created.UserID,
+	// 	created.StartAt.Year(),
+	// 	int(created.StartAt.Month()),
+	// )
+
+	logger.Infof(
+		"[CreateCalendar] successfully created calendar event: %s",
+		created.ID,
+	)
+
+	return created, nil
+}
 
 // func (s *CalendarService) UpdateCalendarEvent(ctx context.Context, UserID uuid.UUID, eventID uuid.UUID, req *dto.CalendarUpdateRequest) error {
 // 	cal, err := s.CalendarEventsRepo.FindByID(ctx, eventID)
@@ -275,32 +323,32 @@ package service
 // // Utility
 // // ----------------------------
 
-// func (s *CalendarService) GenerateMonthData(startDate time.Time) [][]int {
-// 	monthData := make([][]int, 6)
-// 	for i := range monthData {
-// 		monthData[i] = make([]int, 7)
-// 	}
+func (s *CalendarService) GenerateMonthData(startDate time.Time) [][]int {
+	monthData := make([][]int, 6)
+	for i := range monthData {
+		monthData[i] = make([]int, 7)
+	}
 
-// 	firstWeekday := int(startDate.Weekday())
-// 	daysInMonth := time.Date(startDate.Year(), startDate.Month()+1, 0, 0, 0, 0, 0, time.UTC).Day()
+	firstWeekday := int(startDate.Weekday())
+	daysInMonth := time.Date(startDate.Year(), startDate.Month()+1, 0, 0, 0, 0, 0, time.UTC).Day()
 
-// 	day := 1
-// weekLoop:
-// 	for i := 0; i < len(monthData); i++ {
-// 		for j := 0; j < 7; j++ {
-// 			if i == 0 && j < firstWeekday {
-// 				continue
-// 			}
-// 			if day > daysInMonth {
-// 				break weekLoop
-// 			}
-// 			monthData[i][j] = day
-// 			day++
-// 		}
-// 	}
+	day := 1
+weekLoop:
+	for i := 0; i < len(monthData); i++ {
+		for j := 0; j < 7; j++ {
+			if i == 0 && j < firstWeekday {
+				continue
+			}
+			if day > daysInMonth {
+				break weekLoop
+			}
+			monthData[i][j] = day
+			day++
+		}
+	}
 
-// 	return monthData
-// }
+	return monthData
+}
 
 // // CalculateCompletionData: 월별 조회에서는 사용되지 않지만, 일별 조회에서 사용됩니다.
 // func (s *CalendarService) CalculateCompletionData(calendars []*models.CalendarEvents) map[int]int {
@@ -326,13 +374,6 @@ package service
 // // ----------------------------
 // // DTO 변환 헬퍼
 // // ----------------------------
-// func ToDTOList(calendars []*models.CalendarEvents) []*dto.CalendarInfo {
-// 	result := make([]*dto.CalendarInfo, 0, len(calendars))
-// 	for _, cal := range calendars {
-// 		result = append(result, dto.ToCalendarInfo(cal))
-// 	}
-// 	return result
-// }
 
 // // 전체 캐시 초기화
 // func ClearCache(UserID uuid.UUID, year, month int) {

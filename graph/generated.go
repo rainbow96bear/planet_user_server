@@ -11,6 +11,7 @@ import (
 	"strconv"
 	"sync"
 	"sync/atomic"
+	"time"
 
 	"github.com/99designs/gqlgen/graphql"
 	"github.com/99designs/gqlgen/graphql/introspection"
@@ -47,9 +48,25 @@ type DirectiveRoot struct {
 }
 
 type ComplexityRoot struct {
+	Calendar struct {
+		CreatedAt   func(childComplexity int) int
+		Description func(childComplexity int) int
+		Emoji       func(childComplexity int) int
+		EndAt       func(childComplexity int) int
+		ID          func(childComplexity int) int
+		StartAt     func(childComplexity int) int
+		Title       func(childComplexity int) int
+		Todos       func(childComplexity int) int
+		UpdatedAt   func(childComplexity int) int
+		Visibility  func(childComplexity int) int
+	}
+
 	Mutation struct {
-		Empty         func(childComplexity int) int
-		UpdateProfile func(childComplexity int, input model.UpdateProfileInput) int
+		CreateCalendarEvent func(childComplexity int, input model.CreateCalendarInput) int
+		DeleteCalendarEvent func(childComplexity int, eventID string) int
+		Empty               func(childComplexity int) int
+		UpdateCalendarEvent func(childComplexity int, eventID string, input model.UpdateCalendarInput) int
+		UpdateMyProfile     func(childComplexity int, input model.UpdateProfileInput) int
 	}
 
 	NicknameAvailability struct {
@@ -60,29 +77,52 @@ type ComplexityRoot struct {
 	Query struct {
 		CheckNicknameAvailability func(childComplexity int, nickname string) int
 		Empty                     func(childComplexity int) int
-		Me                        func(childComplexity int) int
+		MyCalendarEvent           func(childComplexity int, eventID string) int
+		MyCalendarEvents          func(childComplexity int, year int32, month int32) int
+		MyCalendarEventsByDate    func(childComplexity int, date time.Time) int
+		MyProfile                 func(childComplexity int) int
+		UserCalendarEvents        func(childComplexity int, userID string, year int32, month int32) int
+		UserProfile               func(childComplexity int, userID string) int
+	}
+
+	Todo struct {
+		Content   func(childComplexity int) int
+		CreatedAt func(childComplexity int) int
+		ID        func(childComplexity int) int
+		IsDone    func(childComplexity int) int
+		UpdatedAt func(childComplexity int) int
 	}
 
 	UserProfile struct {
 		Bio            func(childComplexity int) int
+		CreatedAt      func(childComplexity int) int
 		FollowerCount  func(childComplexity int) int
 		FollowingCount func(childComplexity int) int
 		ID             func(childComplexity int) int
 		Nickname       func(childComplexity int) int
 		ProfileImage   func(childComplexity int) int
 		Theme          func(childComplexity int) int
+		UpdatedAt      func(childComplexity int) int
 		UserID         func(childComplexity int) int
 	}
 }
 
 type MutationResolver interface {
 	Empty(ctx context.Context) (*string, error)
-	UpdateProfile(ctx context.Context, input model.UpdateProfileInput) (*model.UserProfile, error)
+	CreateCalendarEvent(ctx context.Context, input model.CreateCalendarInput) (*model.Calendar, error)
+	UpdateCalendarEvent(ctx context.Context, eventID string, input model.UpdateCalendarInput) (*model.Calendar, error)
+	DeleteCalendarEvent(ctx context.Context, eventID string) (bool, error)
+	UpdateMyProfile(ctx context.Context, input model.UpdateProfileInput) (*model.UserProfile, error)
 }
 type QueryResolver interface {
 	Empty(ctx context.Context) (*string, error)
+	MyCalendarEvents(ctx context.Context, year int32, month int32) ([]*model.Calendar, error)
+	MyCalendarEvent(ctx context.Context, eventID string) (*model.Calendar, error)
+	MyCalendarEventsByDate(ctx context.Context, date time.Time) ([]*model.Calendar, error)
+	UserCalendarEvents(ctx context.Context, userID string, year int32, month int32) ([]*model.Calendar, error)
 	CheckNicknameAvailability(ctx context.Context, nickname string) (*model.NicknameAvailability, error)
-	Me(ctx context.Context) (*model.UserProfile, error)
+	MyProfile(ctx context.Context) (*model.UserProfile, error)
+	UserProfile(ctx context.Context, userID string) (*model.UserProfile, error)
 }
 
 type executableSchema struct {
@@ -104,23 +144,117 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 	_ = ec
 	switch typeName + "." + field {
 
+	case "Calendar.createdAt":
+		if e.complexity.Calendar.CreatedAt == nil {
+			break
+		}
+
+		return e.complexity.Calendar.CreatedAt(childComplexity), true
+	case "Calendar.description":
+		if e.complexity.Calendar.Description == nil {
+			break
+		}
+
+		return e.complexity.Calendar.Description(childComplexity), true
+	case "Calendar.emoji":
+		if e.complexity.Calendar.Emoji == nil {
+			break
+		}
+
+		return e.complexity.Calendar.Emoji(childComplexity), true
+	case "Calendar.endAt":
+		if e.complexity.Calendar.EndAt == nil {
+			break
+		}
+
+		return e.complexity.Calendar.EndAt(childComplexity), true
+	case "Calendar.id":
+		if e.complexity.Calendar.ID == nil {
+			break
+		}
+
+		return e.complexity.Calendar.ID(childComplexity), true
+	case "Calendar.startAt":
+		if e.complexity.Calendar.StartAt == nil {
+			break
+		}
+
+		return e.complexity.Calendar.StartAt(childComplexity), true
+	case "Calendar.title":
+		if e.complexity.Calendar.Title == nil {
+			break
+		}
+
+		return e.complexity.Calendar.Title(childComplexity), true
+	case "Calendar.todos":
+		if e.complexity.Calendar.Todos == nil {
+			break
+		}
+
+		return e.complexity.Calendar.Todos(childComplexity), true
+	case "Calendar.updatedAt":
+		if e.complexity.Calendar.UpdatedAt == nil {
+			break
+		}
+
+		return e.complexity.Calendar.UpdatedAt(childComplexity), true
+	case "Calendar.visibility":
+		if e.complexity.Calendar.Visibility == nil {
+			break
+		}
+
+		return e.complexity.Calendar.Visibility(childComplexity), true
+
+	case "Mutation.createCalendarEvent":
+		if e.complexity.Mutation.CreateCalendarEvent == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_createCalendarEvent_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.complexity.Mutation.CreateCalendarEvent(childComplexity, args["input"].(model.CreateCalendarInput)), true
+	case "Mutation.deleteCalendarEvent":
+		if e.complexity.Mutation.DeleteCalendarEvent == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_deleteCalendarEvent_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.complexity.Mutation.DeleteCalendarEvent(childComplexity, args["eventId"].(string)), true
 	case "Mutation._empty":
 		if e.complexity.Mutation.Empty == nil {
 			break
 		}
 
 		return e.complexity.Mutation.Empty(childComplexity), true
-	case "Mutation.updateProfile":
-		if e.complexity.Mutation.UpdateProfile == nil {
+	case "Mutation.updateCalendarEvent":
+		if e.complexity.Mutation.UpdateCalendarEvent == nil {
 			break
 		}
 
-		args, err := ec.field_Mutation_updateProfile_args(ctx, rawArgs)
+		args, err := ec.field_Mutation_updateCalendarEvent_args(ctx, rawArgs)
 		if err != nil {
 			return 0, false
 		}
 
-		return e.complexity.Mutation.UpdateProfile(childComplexity, args["input"].(model.UpdateProfileInput)), true
+		return e.complexity.Mutation.UpdateCalendarEvent(childComplexity, args["eventId"].(string), args["input"].(model.UpdateCalendarInput)), true
+	case "Mutation.updateMyProfile":
+		if e.complexity.Mutation.UpdateMyProfile == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_updateMyProfile_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.complexity.Mutation.UpdateMyProfile(childComplexity, args["input"].(model.UpdateProfileInput)), true
 
 	case "NicknameAvailability.available":
 		if e.complexity.NicknameAvailability.Available == nil {
@@ -152,12 +286,98 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.complexity.Query.Empty(childComplexity), true
-	case "Query.me":
-		if e.complexity.Query.Me == nil {
+	case "Query.myCalendarEvent":
+		if e.complexity.Query.MyCalendarEvent == nil {
 			break
 		}
 
-		return e.complexity.Query.Me(childComplexity), true
+		args, err := ec.field_Query_myCalendarEvent_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.complexity.Query.MyCalendarEvent(childComplexity, args["eventId"].(string)), true
+	case "Query.myCalendarEvents":
+		if e.complexity.Query.MyCalendarEvents == nil {
+			break
+		}
+
+		args, err := ec.field_Query_myCalendarEvents_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.complexity.Query.MyCalendarEvents(childComplexity, args["year"].(int32), args["month"].(int32)), true
+	case "Query.myCalendarEventsByDate":
+		if e.complexity.Query.MyCalendarEventsByDate == nil {
+			break
+		}
+
+		args, err := ec.field_Query_myCalendarEventsByDate_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.complexity.Query.MyCalendarEventsByDate(childComplexity, args["date"].(time.Time)), true
+	case "Query.myProfile":
+		if e.complexity.Query.MyProfile == nil {
+			break
+		}
+
+		return e.complexity.Query.MyProfile(childComplexity), true
+	case "Query.userCalendarEvents":
+		if e.complexity.Query.UserCalendarEvents == nil {
+			break
+		}
+
+		args, err := ec.field_Query_userCalendarEvents_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.complexity.Query.UserCalendarEvents(childComplexity, args["userId"].(string), args["year"].(int32), args["month"].(int32)), true
+	case "Query.userProfile":
+		if e.complexity.Query.UserProfile == nil {
+			break
+		}
+
+		args, err := ec.field_Query_userProfile_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.complexity.Query.UserProfile(childComplexity, args["userId"].(string)), true
+
+	case "Todo.content":
+		if e.complexity.Todo.Content == nil {
+			break
+		}
+
+		return e.complexity.Todo.Content(childComplexity), true
+	case "Todo.createdAt":
+		if e.complexity.Todo.CreatedAt == nil {
+			break
+		}
+
+		return e.complexity.Todo.CreatedAt(childComplexity), true
+	case "Todo.id":
+		if e.complexity.Todo.ID == nil {
+			break
+		}
+
+		return e.complexity.Todo.ID(childComplexity), true
+	case "Todo.isDone":
+		if e.complexity.Todo.IsDone == nil {
+			break
+		}
+
+		return e.complexity.Todo.IsDone(childComplexity), true
+	case "Todo.updatedAt":
+		if e.complexity.Todo.UpdatedAt == nil {
+			break
+		}
+
+		return e.complexity.Todo.UpdatedAt(childComplexity), true
 
 	case "UserProfile.bio":
 		if e.complexity.UserProfile.Bio == nil {
@@ -165,6 +385,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.complexity.UserProfile.Bio(childComplexity), true
+	case "UserProfile.createdAt":
+		if e.complexity.UserProfile.CreatedAt == nil {
+			break
+		}
+
+		return e.complexity.UserProfile.CreatedAt(childComplexity), true
 	case "UserProfile.followerCount":
 		if e.complexity.UserProfile.FollowerCount == nil {
 			break
@@ -201,6 +427,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.complexity.UserProfile.Theme(childComplexity), true
+	case "UserProfile.updatedAt":
+		if e.complexity.UserProfile.UpdatedAt == nil {
+			break
+		}
+
+		return e.complexity.UserProfile.UpdatedAt(childComplexity), true
 	case "UserProfile.userID":
 		if e.complexity.UserProfile.UserID == nil {
 			break
@@ -216,7 +448,11 @@ func (e *executableSchema) Exec(ctx context.Context) graphql.ResponseHandler {
 	opCtx := graphql.GetOperationContext(ctx)
 	ec := executionContext{opCtx, e, 0, 0, make(chan graphql.DeferredResult)}
 	inputUnmarshalMap := graphql.BuildUnmarshalerMap(
+		ec.unmarshalInputCreateCalendarInput,
+		ec.unmarshalInputCreateTodoInput,
+		ec.unmarshalInputUpdateCalendarInput,
 		ec.unmarshalInputUpdateProfileInput,
+		ec.unmarshalInputUpdateTodoInput,
 	)
 	first := true
 
@@ -313,7 +549,7 @@ func (ec *executionContext) introspectType(name string) (*introspection.Type, er
 	return introspection.WrapTypeFromDef(ec.Schema(), ec.Schema().Types[name]), nil
 }
 
-//go:embed "graphqls/common.graphqls" "graphqls/nickname.graphqls" "graphqls/profile.graphqls"
+//go:embed "graphqls/calendarEvent.graphqls" "graphqls/common.graphqls" "graphqls/nickname.graphqls" "graphqls/profile.graphqls"
 var sourcesFS embed.FS
 
 func sourceData(filename string) string {
@@ -325,6 +561,7 @@ func sourceData(filename string) string {
 }
 
 var sources = []*ast.Source{
+	{Name: "graphqls/calendarEvent.graphqls", Input: sourceData("graphqls/calendarEvent.graphqls"), BuiltIn: false},
 	{Name: "graphqls/common.graphqls", Input: sourceData("graphqls/common.graphqls"), BuiltIn: false},
 	{Name: "graphqls/nickname.graphqls", Input: sourceData("graphqls/nickname.graphqls"), BuiltIn: false},
 	{Name: "graphqls/profile.graphqls", Input: sourceData("graphqls/profile.graphqls"), BuiltIn: false},
@@ -335,7 +572,45 @@ var parsedSchema = gqlparser.MustLoadSchema(sources...)
 
 // region    ***************************** args.gotpl *****************************
 
-func (ec *executionContext) field_Mutation_updateProfile_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+func (ec *executionContext) field_Mutation_createCalendarEvent_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "input", ec.unmarshalNCreateCalendarInput2githubᚗcomᚋrainbow96bearᚋplanet_user_serverᚋgraphᚋmodelᚐCreateCalendarInput)
+	if err != nil {
+		return nil, err
+	}
+	args["input"] = arg0
+	return args, nil
+}
+
+func (ec *executionContext) field_Mutation_deleteCalendarEvent_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "eventId", ec.unmarshalNID2string)
+	if err != nil {
+		return nil, err
+	}
+	args["eventId"] = arg0
+	return args, nil
+}
+
+func (ec *executionContext) field_Mutation_updateCalendarEvent_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "eventId", ec.unmarshalNID2string)
+	if err != nil {
+		return nil, err
+	}
+	args["eventId"] = arg0
+	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "input", ec.unmarshalNUpdateCalendarInput2githubᚗcomᚋrainbow96bearᚋplanet_user_serverᚋgraphᚋmodelᚐUpdateCalendarInput)
+	if err != nil {
+		return nil, err
+	}
+	args["input"] = arg1
+	return args, nil
+}
+
+func (ec *executionContext) field_Mutation_updateMyProfile_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
 	var err error
 	args := map[string]any{}
 	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "input", ec.unmarshalNUpdateProfileInput2githubᚗcomᚋrainbow96bearᚋplanet_user_serverᚋgraphᚋmodelᚐUpdateProfileInput)
@@ -365,6 +640,76 @@ func (ec *executionContext) field_Query_checkNicknameAvailability_args(ctx conte
 		return nil, err
 	}
 	args["nickname"] = arg0
+	return args, nil
+}
+
+func (ec *executionContext) field_Query_myCalendarEvent_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "eventId", ec.unmarshalNID2string)
+	if err != nil {
+		return nil, err
+	}
+	args["eventId"] = arg0
+	return args, nil
+}
+
+func (ec *executionContext) field_Query_myCalendarEventsByDate_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "date", ec.unmarshalNTime2timeᚐTime)
+	if err != nil {
+		return nil, err
+	}
+	args["date"] = arg0
+	return args, nil
+}
+
+func (ec *executionContext) field_Query_myCalendarEvents_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "year", ec.unmarshalNInt2int32)
+	if err != nil {
+		return nil, err
+	}
+	args["year"] = arg0
+	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "month", ec.unmarshalNInt2int32)
+	if err != nil {
+		return nil, err
+	}
+	args["month"] = arg1
+	return args, nil
+}
+
+func (ec *executionContext) field_Query_userCalendarEvents_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "userId", ec.unmarshalNID2string)
+	if err != nil {
+		return nil, err
+	}
+	args["userId"] = arg0
+	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "year", ec.unmarshalNInt2int32)
+	if err != nil {
+		return nil, err
+	}
+	args["year"] = arg1
+	arg2, err := graphql.ProcessArgField(ctx, rawArgs, "month", ec.unmarshalNInt2int32)
+	if err != nil {
+		return nil, err
+	}
+	args["month"] = arg2
+	return args, nil
+}
+
+func (ec *executionContext) field_Query_userProfile_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "userId", ec.unmarshalNID2string)
+	if err != nil {
+		return nil, err
+	}
+	args["userId"] = arg0
 	return args, nil
 }
 
@@ -420,6 +765,308 @@ func (ec *executionContext) field___Type_fields_args(ctx context.Context, rawArg
 
 // region    **************************** field.gotpl *****************************
 
+func (ec *executionContext) _Calendar_id(ctx context.Context, field graphql.CollectedField, obj *model.Calendar) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_Calendar_id,
+		func(ctx context.Context) (any, error) {
+			return obj.ID, nil
+		},
+		nil,
+		ec.marshalNID2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_Calendar_id(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Calendar",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type ID does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Calendar_title(ctx context.Context, field graphql.CollectedField, obj *model.Calendar) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_Calendar_title,
+		func(ctx context.Context) (any, error) {
+			return obj.Title, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_Calendar_title(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Calendar",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Calendar_emoji(ctx context.Context, field graphql.CollectedField, obj *model.Calendar) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_Calendar_emoji,
+		func(ctx context.Context) (any, error) {
+			return obj.Emoji, nil
+		},
+		nil,
+		ec.marshalOString2ᚖstring,
+		true,
+		false,
+	)
+}
+
+func (ec *executionContext) fieldContext_Calendar_emoji(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Calendar",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Calendar_description(ctx context.Context, field graphql.CollectedField, obj *model.Calendar) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_Calendar_description,
+		func(ctx context.Context) (any, error) {
+			return obj.Description, nil
+		},
+		nil,
+		ec.marshalOString2ᚖstring,
+		true,
+		false,
+	)
+}
+
+func (ec *executionContext) fieldContext_Calendar_description(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Calendar",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Calendar_startAt(ctx context.Context, field graphql.CollectedField, obj *model.Calendar) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_Calendar_startAt,
+		func(ctx context.Context) (any, error) {
+			return obj.StartAt, nil
+		},
+		nil,
+		ec.marshalNTime2timeᚐTime,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_Calendar_startAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Calendar",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Time does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Calendar_endAt(ctx context.Context, field graphql.CollectedField, obj *model.Calendar) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_Calendar_endAt,
+		func(ctx context.Context) (any, error) {
+			return obj.EndAt, nil
+		},
+		nil,
+		ec.marshalNTime2timeᚐTime,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_Calendar_endAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Calendar",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Time does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Calendar_visibility(ctx context.Context, field graphql.CollectedField, obj *model.Calendar) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_Calendar_visibility,
+		func(ctx context.Context) (any, error) {
+			return obj.Visibility, nil
+		},
+		nil,
+		ec.marshalNCalendarVisibility2githubᚗcomᚋrainbow96bearᚋplanet_user_serverᚋgraphᚋmodelᚐCalendarVisibility,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_Calendar_visibility(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Calendar",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type CalendarVisibility does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Calendar_todos(ctx context.Context, field graphql.CollectedField, obj *model.Calendar) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_Calendar_todos,
+		func(ctx context.Context) (any, error) {
+			return obj.Todos, nil
+		},
+		nil,
+		ec.marshalNTodo2ᚕᚖgithubᚗcomᚋrainbow96bearᚋplanet_user_serverᚋgraphᚋmodelᚐTodoᚄ,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_Calendar_todos(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Calendar",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "id":
+				return ec.fieldContext_Todo_id(ctx, field)
+			case "content":
+				return ec.fieldContext_Todo_content(ctx, field)
+			case "isDone":
+				return ec.fieldContext_Todo_isDone(ctx, field)
+			case "createdAt":
+				return ec.fieldContext_Todo_createdAt(ctx, field)
+			case "updatedAt":
+				return ec.fieldContext_Todo_updatedAt(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type Todo", field.Name)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Calendar_createdAt(ctx context.Context, field graphql.CollectedField, obj *model.Calendar) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_Calendar_createdAt,
+		func(ctx context.Context) (any, error) {
+			return obj.CreatedAt, nil
+		},
+		nil,
+		ec.marshalNTime2timeᚐTime,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_Calendar_createdAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Calendar",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Time does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Calendar_updatedAt(ctx context.Context, field graphql.CollectedField, obj *model.Calendar) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_Calendar_updatedAt,
+		func(ctx context.Context) (any, error) {
+			return obj.UpdatedAt, nil
+		},
+		nil,
+		ec.marshalNTime2timeᚐTime,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_Calendar_updatedAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Calendar",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Time does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _Mutation__empty(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -449,15 +1096,182 @@ func (ec *executionContext) fieldContext_Mutation__empty(_ context.Context, fiel
 	return fc, nil
 }
 
-func (ec *executionContext) _Mutation_updateProfile(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+func (ec *executionContext) _Mutation_createCalendarEvent(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
 		ec.OperationContext,
 		field,
-		ec.fieldContext_Mutation_updateProfile,
+		ec.fieldContext_Mutation_createCalendarEvent,
 		func(ctx context.Context) (any, error) {
 			fc := graphql.GetFieldContext(ctx)
-			return ec.resolvers.Mutation().UpdateProfile(ctx, fc.Args["input"].(model.UpdateProfileInput))
+			return ec.resolvers.Mutation().CreateCalendarEvent(ctx, fc.Args["input"].(model.CreateCalendarInput))
+		},
+		nil,
+		ec.marshalNCalendar2ᚖgithubᚗcomᚋrainbow96bearᚋplanet_user_serverᚋgraphᚋmodelᚐCalendar,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_Mutation_createCalendarEvent(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "id":
+				return ec.fieldContext_Calendar_id(ctx, field)
+			case "title":
+				return ec.fieldContext_Calendar_title(ctx, field)
+			case "emoji":
+				return ec.fieldContext_Calendar_emoji(ctx, field)
+			case "description":
+				return ec.fieldContext_Calendar_description(ctx, field)
+			case "startAt":
+				return ec.fieldContext_Calendar_startAt(ctx, field)
+			case "endAt":
+				return ec.fieldContext_Calendar_endAt(ctx, field)
+			case "visibility":
+				return ec.fieldContext_Calendar_visibility(ctx, field)
+			case "todos":
+				return ec.fieldContext_Calendar_todos(ctx, field)
+			case "createdAt":
+				return ec.fieldContext_Calendar_createdAt(ctx, field)
+			case "updatedAt":
+				return ec.fieldContext_Calendar_updatedAt(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type Calendar", field.Name)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_createCalendarEvent_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_updateCalendarEvent(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_Mutation_updateCalendarEvent,
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.resolvers.Mutation().UpdateCalendarEvent(ctx, fc.Args["eventId"].(string), fc.Args["input"].(model.UpdateCalendarInput))
+		},
+		nil,
+		ec.marshalNCalendar2ᚖgithubᚗcomᚋrainbow96bearᚋplanet_user_serverᚋgraphᚋmodelᚐCalendar,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_Mutation_updateCalendarEvent(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "id":
+				return ec.fieldContext_Calendar_id(ctx, field)
+			case "title":
+				return ec.fieldContext_Calendar_title(ctx, field)
+			case "emoji":
+				return ec.fieldContext_Calendar_emoji(ctx, field)
+			case "description":
+				return ec.fieldContext_Calendar_description(ctx, field)
+			case "startAt":
+				return ec.fieldContext_Calendar_startAt(ctx, field)
+			case "endAt":
+				return ec.fieldContext_Calendar_endAt(ctx, field)
+			case "visibility":
+				return ec.fieldContext_Calendar_visibility(ctx, field)
+			case "todos":
+				return ec.fieldContext_Calendar_todos(ctx, field)
+			case "createdAt":
+				return ec.fieldContext_Calendar_createdAt(ctx, field)
+			case "updatedAt":
+				return ec.fieldContext_Calendar_updatedAt(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type Calendar", field.Name)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_updateCalendarEvent_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_deleteCalendarEvent(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_Mutation_deleteCalendarEvent,
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.resolvers.Mutation().DeleteCalendarEvent(ctx, fc.Args["eventId"].(string))
+		},
+		nil,
+		ec.marshalNBoolean2bool,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_Mutation_deleteCalendarEvent(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Boolean does not have child fields")
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_deleteCalendarEvent_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_updateMyProfile(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_Mutation_updateMyProfile,
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.resolvers.Mutation().UpdateMyProfile(ctx, fc.Args["input"].(model.UpdateProfileInput))
 		},
 		nil,
 		ec.marshalNUserProfile2ᚖgithubᚗcomᚋrainbow96bearᚋplanet_user_serverᚋgraphᚋmodelᚐUserProfile,
@@ -466,7 +1280,7 @@ func (ec *executionContext) _Mutation_updateProfile(ctx context.Context, field g
 	)
 }
 
-func (ec *executionContext) fieldContext_Mutation_updateProfile(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+func (ec *executionContext) fieldContext_Mutation_updateMyProfile(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	fc = &graphql.FieldContext{
 		Object:     "Mutation",
 		Field:      field,
@@ -490,6 +1304,10 @@ func (ec *executionContext) fieldContext_Mutation_updateProfile(ctx context.Cont
 				return ec.fieldContext_UserProfile_followerCount(ctx, field)
 			case "followingCount":
 				return ec.fieldContext_UserProfile_followingCount(ctx, field)
+			case "createdAt":
+				return ec.fieldContext_UserProfile_createdAt(ctx, field)
+			case "updatedAt":
+				return ec.fieldContext_UserProfile_updatedAt(ctx, field)
 			}
 			return nil, fmt.Errorf("no field named %q was found under type UserProfile", field.Name)
 		},
@@ -501,7 +1319,7 @@ func (ec *executionContext) fieldContext_Mutation_updateProfile(ctx context.Cont
 		}
 	}()
 	ctx = graphql.WithFieldContext(ctx, fc)
-	if fc.Args, err = ec.field_Mutation_updateProfile_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+	if fc.Args, err = ec.field_Mutation_updateMyProfile_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
 		ec.Error(ctx, err)
 		return fc, err
 	}
@@ -595,6 +1413,258 @@ func (ec *executionContext) fieldContext_Query__empty(_ context.Context, field g
 	return fc, nil
 }
 
+func (ec *executionContext) _Query_myCalendarEvents(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_Query_myCalendarEvents,
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.resolvers.Query().MyCalendarEvents(ctx, fc.Args["year"].(int32), fc.Args["month"].(int32))
+		},
+		nil,
+		ec.marshalNCalendar2ᚕᚖgithubᚗcomᚋrainbow96bearᚋplanet_user_serverᚋgraphᚋmodelᚐCalendarᚄ,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_Query_myCalendarEvents(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Query",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "id":
+				return ec.fieldContext_Calendar_id(ctx, field)
+			case "title":
+				return ec.fieldContext_Calendar_title(ctx, field)
+			case "emoji":
+				return ec.fieldContext_Calendar_emoji(ctx, field)
+			case "description":
+				return ec.fieldContext_Calendar_description(ctx, field)
+			case "startAt":
+				return ec.fieldContext_Calendar_startAt(ctx, field)
+			case "endAt":
+				return ec.fieldContext_Calendar_endAt(ctx, field)
+			case "visibility":
+				return ec.fieldContext_Calendar_visibility(ctx, field)
+			case "todos":
+				return ec.fieldContext_Calendar_todos(ctx, field)
+			case "createdAt":
+				return ec.fieldContext_Calendar_createdAt(ctx, field)
+			case "updatedAt":
+				return ec.fieldContext_Calendar_updatedAt(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type Calendar", field.Name)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Query_myCalendarEvents_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Query_myCalendarEvent(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_Query_myCalendarEvent,
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.resolvers.Query().MyCalendarEvent(ctx, fc.Args["eventId"].(string))
+		},
+		nil,
+		ec.marshalNCalendar2ᚖgithubᚗcomᚋrainbow96bearᚋplanet_user_serverᚋgraphᚋmodelᚐCalendar,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_Query_myCalendarEvent(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Query",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "id":
+				return ec.fieldContext_Calendar_id(ctx, field)
+			case "title":
+				return ec.fieldContext_Calendar_title(ctx, field)
+			case "emoji":
+				return ec.fieldContext_Calendar_emoji(ctx, field)
+			case "description":
+				return ec.fieldContext_Calendar_description(ctx, field)
+			case "startAt":
+				return ec.fieldContext_Calendar_startAt(ctx, field)
+			case "endAt":
+				return ec.fieldContext_Calendar_endAt(ctx, field)
+			case "visibility":
+				return ec.fieldContext_Calendar_visibility(ctx, field)
+			case "todos":
+				return ec.fieldContext_Calendar_todos(ctx, field)
+			case "createdAt":
+				return ec.fieldContext_Calendar_createdAt(ctx, field)
+			case "updatedAt":
+				return ec.fieldContext_Calendar_updatedAt(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type Calendar", field.Name)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Query_myCalendarEvent_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Query_myCalendarEventsByDate(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_Query_myCalendarEventsByDate,
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.resolvers.Query().MyCalendarEventsByDate(ctx, fc.Args["date"].(time.Time))
+		},
+		nil,
+		ec.marshalNCalendar2ᚕᚖgithubᚗcomᚋrainbow96bearᚋplanet_user_serverᚋgraphᚋmodelᚐCalendarᚄ,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_Query_myCalendarEventsByDate(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Query",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "id":
+				return ec.fieldContext_Calendar_id(ctx, field)
+			case "title":
+				return ec.fieldContext_Calendar_title(ctx, field)
+			case "emoji":
+				return ec.fieldContext_Calendar_emoji(ctx, field)
+			case "description":
+				return ec.fieldContext_Calendar_description(ctx, field)
+			case "startAt":
+				return ec.fieldContext_Calendar_startAt(ctx, field)
+			case "endAt":
+				return ec.fieldContext_Calendar_endAt(ctx, field)
+			case "visibility":
+				return ec.fieldContext_Calendar_visibility(ctx, field)
+			case "todos":
+				return ec.fieldContext_Calendar_todos(ctx, field)
+			case "createdAt":
+				return ec.fieldContext_Calendar_createdAt(ctx, field)
+			case "updatedAt":
+				return ec.fieldContext_Calendar_updatedAt(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type Calendar", field.Name)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Query_myCalendarEventsByDate_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Query_userCalendarEvents(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_Query_userCalendarEvents,
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.resolvers.Query().UserCalendarEvents(ctx, fc.Args["userId"].(string), fc.Args["year"].(int32), fc.Args["month"].(int32))
+		},
+		nil,
+		ec.marshalNCalendar2ᚕᚖgithubᚗcomᚋrainbow96bearᚋplanet_user_serverᚋgraphᚋmodelᚐCalendarᚄ,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_Query_userCalendarEvents(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Query",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "id":
+				return ec.fieldContext_Calendar_id(ctx, field)
+			case "title":
+				return ec.fieldContext_Calendar_title(ctx, field)
+			case "emoji":
+				return ec.fieldContext_Calendar_emoji(ctx, field)
+			case "description":
+				return ec.fieldContext_Calendar_description(ctx, field)
+			case "startAt":
+				return ec.fieldContext_Calendar_startAt(ctx, field)
+			case "endAt":
+				return ec.fieldContext_Calendar_endAt(ctx, field)
+			case "visibility":
+				return ec.fieldContext_Calendar_visibility(ctx, field)
+			case "todos":
+				return ec.fieldContext_Calendar_todos(ctx, field)
+			case "createdAt":
+				return ec.fieldContext_Calendar_createdAt(ctx, field)
+			case "updatedAt":
+				return ec.fieldContext_Calendar_updatedAt(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type Calendar", field.Name)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Query_userCalendarEvents_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _Query_checkNicknameAvailability(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -642,14 +1712,14 @@ func (ec *executionContext) fieldContext_Query_checkNicknameAvailability(ctx con
 	return fc, nil
 }
 
-func (ec *executionContext) _Query_me(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+func (ec *executionContext) _Query_myProfile(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
 		ec.OperationContext,
 		field,
-		ec.fieldContext_Query_me,
+		ec.fieldContext_Query_myProfile,
 		func(ctx context.Context) (any, error) {
-			return ec.resolvers.Query().Me(ctx)
+			return ec.resolvers.Query().MyProfile(ctx)
 		},
 		nil,
 		ec.marshalNUserProfile2ᚖgithubᚗcomᚋrainbow96bearᚋplanet_user_serverᚋgraphᚋmodelᚐUserProfile,
@@ -658,7 +1728,7 @@ func (ec *executionContext) _Query_me(ctx context.Context, field graphql.Collect
 	)
 }
 
-func (ec *executionContext) fieldContext_Query_me(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+func (ec *executionContext) fieldContext_Query_myProfile(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	fc = &graphql.FieldContext{
 		Object:     "Query",
 		Field:      field,
@@ -682,9 +1752,76 @@ func (ec *executionContext) fieldContext_Query_me(_ context.Context, field graph
 				return ec.fieldContext_UserProfile_followerCount(ctx, field)
 			case "followingCount":
 				return ec.fieldContext_UserProfile_followingCount(ctx, field)
+			case "createdAt":
+				return ec.fieldContext_UserProfile_createdAt(ctx, field)
+			case "updatedAt":
+				return ec.fieldContext_UserProfile_updatedAt(ctx, field)
 			}
 			return nil, fmt.Errorf("no field named %q was found under type UserProfile", field.Name)
 		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Query_userProfile(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_Query_userProfile,
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.resolvers.Query().UserProfile(ctx, fc.Args["userId"].(string))
+		},
+		nil,
+		ec.marshalNUserProfile2ᚖgithubᚗcomᚋrainbow96bearᚋplanet_user_serverᚋgraphᚋmodelᚐUserProfile,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_Query_userProfile(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Query",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "id":
+				return ec.fieldContext_UserProfile_id(ctx, field)
+			case "userID":
+				return ec.fieldContext_UserProfile_userID(ctx, field)
+			case "nickname":
+				return ec.fieldContext_UserProfile_nickname(ctx, field)
+			case "bio":
+				return ec.fieldContext_UserProfile_bio(ctx, field)
+			case "profileImage":
+				return ec.fieldContext_UserProfile_profileImage(ctx, field)
+			case "theme":
+				return ec.fieldContext_UserProfile_theme(ctx, field)
+			case "followerCount":
+				return ec.fieldContext_UserProfile_followerCount(ctx, field)
+			case "followingCount":
+				return ec.fieldContext_UserProfile_followingCount(ctx, field)
+			case "createdAt":
+				return ec.fieldContext_UserProfile_createdAt(ctx, field)
+			case "updatedAt":
+				return ec.fieldContext_UserProfile_updatedAt(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type UserProfile", field.Name)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Query_userProfile_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
 	}
 	return fc, nil
 }
@@ -792,6 +1929,151 @@ func (ec *executionContext) fieldContext_Query___schema(_ context.Context, field
 				return ec.fieldContext___Schema_directives(ctx, field)
 			}
 			return nil, fmt.Errorf("no field named %q was found under type __Schema", field.Name)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Todo_id(ctx context.Context, field graphql.CollectedField, obj *model.Todo) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_Todo_id,
+		func(ctx context.Context) (any, error) {
+			return obj.ID, nil
+		},
+		nil,
+		ec.marshalNID2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_Todo_id(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Todo",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type ID does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Todo_content(ctx context.Context, field graphql.CollectedField, obj *model.Todo) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_Todo_content,
+		func(ctx context.Context) (any, error) {
+			return obj.Content, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_Todo_content(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Todo",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Todo_isDone(ctx context.Context, field graphql.CollectedField, obj *model.Todo) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_Todo_isDone,
+		func(ctx context.Context) (any, error) {
+			return obj.IsDone, nil
+		},
+		nil,
+		ec.marshalNBoolean2bool,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_Todo_isDone(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Todo",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Boolean does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Todo_createdAt(ctx context.Context, field graphql.CollectedField, obj *model.Todo) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_Todo_createdAt,
+		func(ctx context.Context) (any, error) {
+			return obj.CreatedAt, nil
+		},
+		nil,
+		ec.marshalNTime2timeᚐTime,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_Todo_createdAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Todo",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Time does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Todo_updatedAt(ctx context.Context, field graphql.CollectedField, obj *model.Todo) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_Todo_updatedAt,
+		func(ctx context.Context) (any, error) {
+			return obj.UpdatedAt, nil
+		},
+		nil,
+		ec.marshalNTime2timeᚐTime,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_Todo_updatedAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Todo",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Time does not have child fields")
 		},
 	}
 	return fc, nil
@@ -1024,6 +2306,64 @@ func (ec *executionContext) fieldContext_UserProfile_followingCount(_ context.Co
 		IsResolver: false,
 		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
 			return nil, errors.New("field of type Int does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _UserProfile_createdAt(ctx context.Context, field graphql.CollectedField, obj *model.UserProfile) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_UserProfile_createdAt,
+		func(ctx context.Context) (any, error) {
+			return obj.CreatedAt, nil
+		},
+		nil,
+		ec.marshalNTime2timeᚐTime,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_UserProfile_createdAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "UserProfile",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Time does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _UserProfile_updatedAt(ctx context.Context, field graphql.CollectedField, obj *model.UserProfile) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_UserProfile_updatedAt,
+		func(ctx context.Context) (any, error) {
+			return obj.UpdatedAt, nil
+		},
+		nil,
+		ec.marshalNTime2timeᚐTime,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_UserProfile_updatedAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "UserProfile",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Time does not have child fields")
 		},
 	}
 	return fc, nil
@@ -2475,6 +3815,175 @@ func (ec *executionContext) fieldContext___Type_isOneOf(_ context.Context, field
 
 // region    **************************** input.gotpl *****************************
 
+func (ec *executionContext) unmarshalInputCreateCalendarInput(ctx context.Context, obj any) (model.CreateCalendarInput, error) {
+	var it model.CreateCalendarInput
+	asMap := map[string]any{}
+	for k, v := range obj.(map[string]any) {
+		asMap[k] = v
+	}
+
+	if _, present := asMap["visibility"]; !present {
+		asMap["visibility"] = "public"
+	}
+
+	fieldsInOrder := [...]string{"title", "emoji", "description", "startAt", "endAt", "visibility", "todos"}
+	for _, k := range fieldsInOrder {
+		v, ok := asMap[k]
+		if !ok {
+			continue
+		}
+		switch k {
+		case "title":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("title"))
+			data, err := ec.unmarshalNString2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Title = data
+		case "emoji":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("emoji"))
+			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Emoji = data
+		case "description":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("description"))
+			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Description = data
+		case "startAt":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("startAt"))
+			data, err := ec.unmarshalNTime2timeᚐTime(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.StartAt = data
+		case "endAt":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("endAt"))
+			data, err := ec.unmarshalNTime2timeᚐTime(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.EndAt = data
+		case "visibility":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("visibility"))
+			data, err := ec.unmarshalOCalendarVisibility2ᚖgithubᚗcomᚋrainbow96bearᚋplanet_user_serverᚋgraphᚋmodelᚐCalendarVisibility(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Visibility = data
+		case "todos":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("todos"))
+			data, err := ec.unmarshalOCreateTodoInput2ᚕᚖgithubᚗcomᚋrainbow96bearᚋplanet_user_serverᚋgraphᚋmodelᚐCreateTodoInputᚄ(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Todos = data
+		}
+	}
+
+	return it, nil
+}
+
+func (ec *executionContext) unmarshalInputCreateTodoInput(ctx context.Context, obj any) (model.CreateTodoInput, error) {
+	var it model.CreateTodoInput
+	asMap := map[string]any{}
+	for k, v := range obj.(map[string]any) {
+		asMap[k] = v
+	}
+
+	fieldsInOrder := [...]string{"content"}
+	for _, k := range fieldsInOrder {
+		v, ok := asMap[k]
+		if !ok {
+			continue
+		}
+		switch k {
+		case "content":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("content"))
+			data, err := ec.unmarshalNString2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Content = data
+		}
+	}
+
+	return it, nil
+}
+
+func (ec *executionContext) unmarshalInputUpdateCalendarInput(ctx context.Context, obj any) (model.UpdateCalendarInput, error) {
+	var it model.UpdateCalendarInput
+	asMap := map[string]any{}
+	for k, v := range obj.(map[string]any) {
+		asMap[k] = v
+	}
+
+	fieldsInOrder := [...]string{"title", "emoji", "description", "startAt", "endAt", "visibility", "todos"}
+	for _, k := range fieldsInOrder {
+		v, ok := asMap[k]
+		if !ok {
+			continue
+		}
+		switch k {
+		case "title":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("title"))
+			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Title = data
+		case "emoji":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("emoji"))
+			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Emoji = data
+		case "description":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("description"))
+			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Description = data
+		case "startAt":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("startAt"))
+			data, err := ec.unmarshalOTime2ᚖtimeᚐTime(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.StartAt = data
+		case "endAt":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("endAt"))
+			data, err := ec.unmarshalOTime2ᚖtimeᚐTime(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.EndAt = data
+		case "visibility":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("visibility"))
+			data, err := ec.unmarshalOCalendarVisibility2ᚖgithubᚗcomᚋrainbow96bearᚋplanet_user_serverᚋgraphᚋmodelᚐCalendarVisibility(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Visibility = data
+		case "todos":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("todos"))
+			data, err := ec.unmarshalOUpdateTodoInput2ᚕᚖgithubᚗcomᚋrainbow96bearᚋplanet_user_serverᚋgraphᚋmodelᚐUpdateTodoInputᚄ(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Todos = data
+		}
+	}
+
+	return it, nil
+}
+
 func (ec *executionContext) unmarshalInputUpdateProfileInput(ctx context.Context, obj any) (model.UpdateProfileInput, error) {
 	var it model.UpdateProfileInput
 	asMap := map[string]any{}
@@ -2523,6 +4032,47 @@ func (ec *executionContext) unmarshalInputUpdateProfileInput(ctx context.Context
 	return it, nil
 }
 
+func (ec *executionContext) unmarshalInputUpdateTodoInput(ctx context.Context, obj any) (model.UpdateTodoInput, error) {
+	var it model.UpdateTodoInput
+	asMap := map[string]any{}
+	for k, v := range obj.(map[string]any) {
+		asMap[k] = v
+	}
+
+	fieldsInOrder := [...]string{"id", "content", "isDone"}
+	for _, k := range fieldsInOrder {
+		v, ok := asMap[k]
+		if !ok {
+			continue
+		}
+		switch k {
+		case "id":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("id"))
+			data, err := ec.unmarshalOID2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.ID = data
+		case "content":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("content"))
+			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Content = data
+		case "isDone":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("isDone"))
+			data, err := ec.unmarshalOBoolean2ᚖbool(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.IsDone = data
+		}
+	}
+
+	return it, nil
+}
+
 // endregion **************************** input.gotpl *****************************
 
 // region    ************************** interface.gotpl ***************************
@@ -2530,6 +4080,84 @@ func (ec *executionContext) unmarshalInputUpdateProfileInput(ctx context.Context
 // endregion ************************** interface.gotpl ***************************
 
 // region    **************************** object.gotpl ****************************
+
+var calendarImplementors = []string{"Calendar"}
+
+func (ec *executionContext) _Calendar(ctx context.Context, sel ast.SelectionSet, obj *model.Calendar) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, calendarImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := make(map[string]*graphql.FieldSet)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("Calendar")
+		case "id":
+			out.Values[i] = ec._Calendar_id(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "title":
+			out.Values[i] = ec._Calendar_title(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "emoji":
+			out.Values[i] = ec._Calendar_emoji(ctx, field, obj)
+		case "description":
+			out.Values[i] = ec._Calendar_description(ctx, field, obj)
+		case "startAt":
+			out.Values[i] = ec._Calendar_startAt(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "endAt":
+			out.Values[i] = ec._Calendar_endAt(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "visibility":
+			out.Values[i] = ec._Calendar_visibility(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "todos":
+			out.Values[i] = ec._Calendar_todos(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "createdAt":
+			out.Values[i] = ec._Calendar_createdAt(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "updatedAt":
+			out.Values[i] = ec._Calendar_updatedAt(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.deferred, int32(len(deferred)))
+
+	for label, dfs := range deferred {
+		ec.processDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
+	return out
+}
 
 var mutationImplementors = []string{"Mutation"}
 
@@ -2554,9 +4182,30 @@ func (ec *executionContext) _Mutation(ctx context.Context, sel ast.SelectionSet)
 			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
 				return ec._Mutation__empty(ctx, field)
 			})
-		case "updateProfile":
+		case "createCalendarEvent":
 			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
-				return ec._Mutation_updateProfile(ctx, field)
+				return ec._Mutation_createCalendarEvent(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "updateCalendarEvent":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_updateCalendarEvent(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "deleteCalendarEvent":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_deleteCalendarEvent(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "updateMyProfile":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_updateMyProfile(ctx, field)
 			})
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
@@ -2663,6 +4312,94 @@ func (ec *executionContext) _Query(ctx context.Context, sel ast.SelectionSet) gr
 			}
 
 			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
+		case "myCalendarEvents":
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Query_myCalendarEvents(ctx, field)
+				if res == graphql.Null {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
+			}
+
+			rrm := func(ctx context.Context) graphql.Marshaler {
+				return ec.OperationContext.RootResolverMiddleware(ctx,
+					func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
+		case "myCalendarEvent":
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Query_myCalendarEvent(ctx, field)
+				if res == graphql.Null {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
+			}
+
+			rrm := func(ctx context.Context) graphql.Marshaler {
+				return ec.OperationContext.RootResolverMiddleware(ctx,
+					func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
+		case "myCalendarEventsByDate":
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Query_myCalendarEventsByDate(ctx, field)
+				if res == graphql.Null {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
+			}
+
+			rrm := func(ctx context.Context) graphql.Marshaler {
+				return ec.OperationContext.RootResolverMiddleware(ctx,
+					func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
+		case "userCalendarEvents":
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Query_userCalendarEvents(ctx, field)
+				if res == graphql.Null {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
+			}
+
+			rrm := func(ctx context.Context) graphql.Marshaler {
+				return ec.OperationContext.RootResolverMiddleware(ctx,
+					func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
 		case "checkNicknameAvailability":
 			field := field
 
@@ -2685,7 +4422,7 @@ func (ec *executionContext) _Query(ctx context.Context, sel ast.SelectionSet) gr
 			}
 
 			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
-		case "me":
+		case "myProfile":
 			field := field
 
 			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
@@ -2694,7 +4431,29 @@ func (ec *executionContext) _Query(ctx context.Context, sel ast.SelectionSet) gr
 						ec.Error(ctx, ec.Recover(ctx, r))
 					}
 				}()
-				res = ec._Query_me(ctx, field)
+				res = ec._Query_myProfile(ctx, field)
+				if res == graphql.Null {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
+			}
+
+			rrm := func(ctx context.Context) graphql.Marshaler {
+				return ec.OperationContext.RootResolverMiddleware(ctx,
+					func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
+		case "userProfile":
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Query_userProfile(ctx, field)
 				if res == graphql.Null {
 					atomic.AddUint32(&fs.Invalids, 1)
 				}
@@ -2715,6 +4474,65 @@ func (ec *executionContext) _Query(ctx context.Context, sel ast.SelectionSet) gr
 			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
 				return ec._Query___schema(ctx, field)
 			})
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.deferred, int32(len(deferred)))
+
+	for label, dfs := range deferred {
+		ec.processDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
+	return out
+}
+
+var todoImplementors = []string{"Todo"}
+
+func (ec *executionContext) _Todo(ctx context.Context, sel ast.SelectionSet, obj *model.Todo) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, todoImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := make(map[string]*graphql.FieldSet)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("Todo")
+		case "id":
+			out.Values[i] = ec._Todo_id(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "content":
+			out.Values[i] = ec._Todo_content(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "isDone":
+			out.Values[i] = ec._Todo_isDone(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "createdAt":
+			out.Values[i] = ec._Todo_createdAt(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "updatedAt":
+			out.Values[i] = ec._Todo_updatedAt(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
 		default:
 			panic("unknown field " + strconv.Quote(field.Name))
 		}
@@ -2780,6 +4598,16 @@ func (ec *executionContext) _UserProfile(ctx context.Context, sel ast.SelectionS
 			}
 		case "followingCount":
 			out.Values[i] = ec._UserProfile_followingCount(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "createdAt":
+			out.Values[i] = ec._UserProfile_createdAt(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "updatedAt":
+			out.Values[i] = ec._UserProfile_updatedAt(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
@@ -3157,6 +4985,84 @@ func (ec *executionContext) marshalNBoolean2bool(ctx context.Context, sel ast.Se
 	return res
 }
 
+func (ec *executionContext) marshalNCalendar2githubᚗcomᚋrainbow96bearᚋplanet_user_serverᚋgraphᚋmodelᚐCalendar(ctx context.Context, sel ast.SelectionSet, v model.Calendar) graphql.Marshaler {
+	return ec._Calendar(ctx, sel, &v)
+}
+
+func (ec *executionContext) marshalNCalendar2ᚕᚖgithubᚗcomᚋrainbow96bearᚋplanet_user_serverᚋgraphᚋmodelᚐCalendarᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.Calendar) graphql.Marshaler {
+	ret := make(graphql.Array, len(v))
+	var wg sync.WaitGroup
+	isLen1 := len(v) == 1
+	if !isLen1 {
+		wg.Add(len(v))
+	}
+	for i := range v {
+		i := i
+		fc := &graphql.FieldContext{
+			Index:  &i,
+			Result: &v[i],
+		}
+		ctx := graphql.WithFieldContext(ctx, fc)
+		f := func(i int) {
+			defer func() {
+				if r := recover(); r != nil {
+					ec.Error(ctx, ec.Recover(ctx, r))
+					ret = nil
+				}
+			}()
+			if !isLen1 {
+				defer wg.Done()
+			}
+			ret[i] = ec.marshalNCalendar2ᚖgithubᚗcomᚋrainbow96bearᚋplanet_user_serverᚋgraphᚋmodelᚐCalendar(ctx, sel, v[i])
+		}
+		if isLen1 {
+			f(i)
+		} else {
+			go f(i)
+		}
+
+	}
+	wg.Wait()
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
+}
+
+func (ec *executionContext) marshalNCalendar2ᚖgithubᚗcomᚋrainbow96bearᚋplanet_user_serverᚋgraphᚋmodelᚐCalendar(ctx context.Context, sel ast.SelectionSet, v *model.Calendar) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._Calendar(ctx, sel, v)
+}
+
+func (ec *executionContext) unmarshalNCalendarVisibility2githubᚗcomᚋrainbow96bearᚋplanet_user_serverᚋgraphᚋmodelᚐCalendarVisibility(ctx context.Context, v any) (model.CalendarVisibility, error) {
+	var res model.CalendarVisibility
+	err := res.UnmarshalGQL(v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) marshalNCalendarVisibility2githubᚗcomᚋrainbow96bearᚋplanet_user_serverᚋgraphᚋmodelᚐCalendarVisibility(ctx context.Context, sel ast.SelectionSet, v model.CalendarVisibility) graphql.Marshaler {
+	return v
+}
+
+func (ec *executionContext) unmarshalNCreateCalendarInput2githubᚗcomᚋrainbow96bearᚋplanet_user_serverᚋgraphᚋmodelᚐCreateCalendarInput(ctx context.Context, v any) (model.CreateCalendarInput, error) {
+	res, err := ec.unmarshalInputCreateCalendarInput(ctx, v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) unmarshalNCreateTodoInput2ᚖgithubᚗcomᚋrainbow96bearᚋplanet_user_serverᚋgraphᚋmodelᚐCreateTodoInput(ctx context.Context, v any) (*model.CreateTodoInput, error) {
+	res, err := ec.unmarshalInputCreateTodoInput(ctx, v)
+	return &res, graphql.ErrorOnPath(ctx, err)
+}
+
 func (ec *executionContext) unmarshalNID2string(ctx context.Context, v any) (string, error) {
 	res, err := graphql.UnmarshalID(v)
 	return res, graphql.ErrorOnPath(ctx, err)
@@ -3219,9 +5125,89 @@ func (ec *executionContext) marshalNString2string(ctx context.Context, sel ast.S
 	return res
 }
 
+func (ec *executionContext) unmarshalNTime2timeᚐTime(ctx context.Context, v any) (time.Time, error) {
+	res, err := graphql.UnmarshalTime(v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) marshalNTime2timeᚐTime(ctx context.Context, sel ast.SelectionSet, v time.Time) graphql.Marshaler {
+	_ = sel
+	res := graphql.MarshalTime(v)
+	if res == graphql.Null {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+	}
+	return res
+}
+
+func (ec *executionContext) marshalNTodo2ᚕᚖgithubᚗcomᚋrainbow96bearᚋplanet_user_serverᚋgraphᚋmodelᚐTodoᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.Todo) graphql.Marshaler {
+	ret := make(graphql.Array, len(v))
+	var wg sync.WaitGroup
+	isLen1 := len(v) == 1
+	if !isLen1 {
+		wg.Add(len(v))
+	}
+	for i := range v {
+		i := i
+		fc := &graphql.FieldContext{
+			Index:  &i,
+			Result: &v[i],
+		}
+		ctx := graphql.WithFieldContext(ctx, fc)
+		f := func(i int) {
+			defer func() {
+				if r := recover(); r != nil {
+					ec.Error(ctx, ec.Recover(ctx, r))
+					ret = nil
+				}
+			}()
+			if !isLen1 {
+				defer wg.Done()
+			}
+			ret[i] = ec.marshalNTodo2ᚖgithubᚗcomᚋrainbow96bearᚋplanet_user_serverᚋgraphᚋmodelᚐTodo(ctx, sel, v[i])
+		}
+		if isLen1 {
+			f(i)
+		} else {
+			go f(i)
+		}
+
+	}
+	wg.Wait()
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
+}
+
+func (ec *executionContext) marshalNTodo2ᚖgithubᚗcomᚋrainbow96bearᚋplanet_user_serverᚋgraphᚋmodelᚐTodo(ctx context.Context, sel ast.SelectionSet, v *model.Todo) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._Todo(ctx, sel, v)
+}
+
+func (ec *executionContext) unmarshalNUpdateCalendarInput2githubᚗcomᚋrainbow96bearᚋplanet_user_serverᚋgraphᚋmodelᚐUpdateCalendarInput(ctx context.Context, v any) (model.UpdateCalendarInput, error) {
+	res, err := ec.unmarshalInputUpdateCalendarInput(ctx, v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
 func (ec *executionContext) unmarshalNUpdateProfileInput2githubᚗcomᚋrainbow96bearᚋplanet_user_serverᚋgraphᚋmodelᚐUpdateProfileInput(ctx context.Context, v any) (model.UpdateProfileInput, error) {
 	res, err := ec.unmarshalInputUpdateProfileInput(ctx, v)
 	return res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) unmarshalNUpdateTodoInput2ᚖgithubᚗcomᚋrainbow96bearᚋplanet_user_serverᚋgraphᚋmodelᚐUpdateTodoInput(ctx context.Context, v any) (*model.UpdateTodoInput, error) {
+	res, err := ec.unmarshalInputUpdateTodoInput(ctx, v)
+	return &res, graphql.ErrorOnPath(ctx, err)
 }
 
 func (ec *executionContext) marshalNUserProfile2githubᚗcomᚋrainbow96bearᚋplanet_user_serverᚋgraphᚋmodelᚐUserProfile(ctx context.Context, sel ast.SelectionSet, v model.UserProfile) graphql.Marshaler {
@@ -3521,6 +5507,58 @@ func (ec *executionContext) marshalOBoolean2ᚖbool(ctx context.Context, sel ast
 	return res
 }
 
+func (ec *executionContext) unmarshalOCalendarVisibility2ᚖgithubᚗcomᚋrainbow96bearᚋplanet_user_serverᚋgraphᚋmodelᚐCalendarVisibility(ctx context.Context, v any) (*model.CalendarVisibility, error) {
+	if v == nil {
+		return nil, nil
+	}
+	var res = new(model.CalendarVisibility)
+	err := res.UnmarshalGQL(v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) marshalOCalendarVisibility2ᚖgithubᚗcomᚋrainbow96bearᚋplanet_user_serverᚋgraphᚋmodelᚐCalendarVisibility(ctx context.Context, sel ast.SelectionSet, v *model.CalendarVisibility) graphql.Marshaler {
+	if v == nil {
+		return graphql.Null
+	}
+	return v
+}
+
+func (ec *executionContext) unmarshalOCreateTodoInput2ᚕᚖgithubᚗcomᚋrainbow96bearᚋplanet_user_serverᚋgraphᚋmodelᚐCreateTodoInputᚄ(ctx context.Context, v any) ([]*model.CreateTodoInput, error) {
+	if v == nil {
+		return nil, nil
+	}
+	var vSlice []any
+	vSlice = graphql.CoerceList(v)
+	var err error
+	res := make([]*model.CreateTodoInput, len(vSlice))
+	for i := range vSlice {
+		ctx := graphql.WithPathContext(ctx, graphql.NewPathWithIndex(i))
+		res[i], err = ec.unmarshalNCreateTodoInput2ᚖgithubᚗcomᚋrainbow96bearᚋplanet_user_serverᚋgraphᚋmodelᚐCreateTodoInput(ctx, vSlice[i])
+		if err != nil {
+			return nil, err
+		}
+	}
+	return res, nil
+}
+
+func (ec *executionContext) unmarshalOID2ᚖstring(ctx context.Context, v any) (*string, error) {
+	if v == nil {
+		return nil, nil
+	}
+	res, err := graphql.UnmarshalID(v)
+	return &res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) marshalOID2ᚖstring(ctx context.Context, sel ast.SelectionSet, v *string) graphql.Marshaler {
+	if v == nil {
+		return graphql.Null
+	}
+	_ = sel
+	_ = ctx
+	res := graphql.MarshalID(*v)
+	return res
+}
+
 func (ec *executionContext) unmarshalOString2ᚖstring(ctx context.Context, v any) (*string, error) {
 	if v == nil {
 		return nil, nil
@@ -3537,6 +5575,42 @@ func (ec *executionContext) marshalOString2ᚖstring(ctx context.Context, sel as
 	_ = ctx
 	res := graphql.MarshalString(*v)
 	return res
+}
+
+func (ec *executionContext) unmarshalOTime2ᚖtimeᚐTime(ctx context.Context, v any) (*time.Time, error) {
+	if v == nil {
+		return nil, nil
+	}
+	res, err := graphql.UnmarshalTime(v)
+	return &res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) marshalOTime2ᚖtimeᚐTime(ctx context.Context, sel ast.SelectionSet, v *time.Time) graphql.Marshaler {
+	if v == nil {
+		return graphql.Null
+	}
+	_ = sel
+	_ = ctx
+	res := graphql.MarshalTime(*v)
+	return res
+}
+
+func (ec *executionContext) unmarshalOUpdateTodoInput2ᚕᚖgithubᚗcomᚋrainbow96bearᚋplanet_user_serverᚋgraphᚋmodelᚐUpdateTodoInputᚄ(ctx context.Context, v any) ([]*model.UpdateTodoInput, error) {
+	if v == nil {
+		return nil, nil
+	}
+	var vSlice []any
+	vSlice = graphql.CoerceList(v)
+	var err error
+	res := make([]*model.UpdateTodoInput, len(vSlice))
+	for i := range vSlice {
+		ctx := graphql.WithPathContext(ctx, graphql.NewPathWithIndex(i))
+		res[i], err = ec.unmarshalNUpdateTodoInput2ᚖgithubᚗcomᚋrainbow96bearᚋplanet_user_serverᚋgraphᚋmodelᚐUpdateTodoInput(ctx, vSlice[i])
+		if err != nil {
+			return nil, err
+		}
+	}
+	return res, nil
 }
 
 func (ec *executionContext) marshalO__EnumValue2ᚕgithubᚗcomᚋ99designsᚋgqlgenᚋgraphqlᚋintrospectionᚐEnumValueᚄ(ctx context.Context, sel ast.SelectionSet, v []introspection.EnumValue) graphql.Marshaler {

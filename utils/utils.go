@@ -1,34 +1,32 @@
 package utils
 
 import (
+	"errors"
 	"fmt"
 	"net/http"
 	"reflect"
 
 	"github.com/gin-gonic/gin"
+	"github.com/golang-jwt/jwt/v5"
 	"github.com/google/uuid"
 )
 
-func GetUserID(c *gin.Context) (uuid.UUID, error) {
-	authUuidValue, exists := c.Get("user_uuid")
-	if !exists {
-		err := fmt.Errorf("unauthorized")
-		c.JSON(http.StatusUnauthorized, gin.H{"error": err.Error()})
-		return uuid.Nil, err
+func GetUserID(token *jwt.Token) (uuid.UUID, error) {
+	claims, ok := token.Claims.(jwt.MapClaims)
+	if !ok {
+		return uuid.Nil, errors.New("invalid token claims")
 	}
 
-	authIDStr, ok := authUuidValue.(string)
+	sub, ok := claims["sub"].(string)
 	if !ok {
-		err := fmt.Errorf("invalid user uuid type")
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-		return uuid.Nil, err
+		return uuid.Nil, errors.New("user id not found in token")
 	}
-	authID, err := uuid.Parse(authIDStr)
+
+	userID, err := uuid.Parse(sub)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid eventId"})
-		return uuid.Nil, err
+		return uuid.Nil, fmt.Errorf("invalid user id format: %w", err)
 	}
-	return authID, nil
+	return userID, nil
 }
 
 func GetUserNickname(c *gin.Context) (string, error) {

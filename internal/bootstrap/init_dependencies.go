@@ -26,6 +26,7 @@ type Services struct {
 func InitDependencies(db *gorm.DB) (*Dependencies, error) {
 	// --- 1. Repository 초기화 ---
 	profileRepo := repository.NewProfilesRepository(db)
+	calendarRepo := repository.NewCalendarEventsRepository(db)
 
 	// --- 2. gRPC Clients 초기화 ---
 	grpcClients, err := grpcclient.NewGrpcClients()
@@ -35,8 +36,9 @@ func InitDependencies(db *gorm.DB) (*Dependencies, error) {
 
 	// --- 3. Service 초기화 ---
 	profileService := service.NewProfileService(db, profileRepo)
+	calendarService := service.NewCalendarService(db, profileRepo, calendarRepo)
 
-	resolver := resolver.NewResolver(profileService)
+	resolver := resolver.NewResolver(profileService, calendarService)
 	// DI Container 패턴
 	return &Dependencies{
 		Repos: &Repositories{

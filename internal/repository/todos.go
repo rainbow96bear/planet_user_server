@@ -1,8 +1,32 @@
 package repository
 
-// type TodosRepository struct {
-// 	DB *gorm.DB
-// }
+import (
+	"context"
+
+	"github.com/rainbow96bear/planet_user_server/internal/tx"
+	"gorm.io/gorm"
+)
+
+type TodosRepository struct {
+	db *gorm.DB
+}
+
+func NewTodosRepository(db *gorm.DB) *TodosRepository {
+	if db == nil {
+		panic("database connection is required")
+	}
+	return &TodosRepository{
+		db: db,
+	}
+}
+
+func (r *TodosRepository) getDB(ctx context.Context) *gorm.DB {
+	// tx 패키지를 사용하여 Context에서 트랜잭션을 추출합니다.
+	if tx := tx.GetTx(ctx); tx != nil {
+		return tx.WithContext(ctx)
+	}
+	return r.db.WithContext(ctx) // 기본 DB 연결 반환
+}
 
 // func (r *TodosRepository) BeginTx(ctx context.Context) (*gorm.DB, error) {
 // 	logger.Infof("starting transaction for TodosRepository")

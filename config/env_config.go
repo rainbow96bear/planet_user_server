@@ -38,6 +38,8 @@ func InitConfig(mode string) {
 	DB_HOST = getString("DB_HOST")
 	DB_PORT = getString("DB_PORT")
 	DB_NAME = getString("DB_NAME")
+
+	MaxTodoLength = getInt16("MaxTodoLength")
 }
 
 func getString(envName string) string {

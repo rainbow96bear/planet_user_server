@@ -19,9 +19,9 @@ import (
 	"github.com/rainbow96bear/planet_utils/pkg/logger"
 )
 
-// UpdateProfile is the resolver for the updateProfile field.
-func (r *mutationResolver) UpdateProfile(ctx context.Context, input model.UpdateProfileInput) (*model.UserProfile, error) {
-	logger.Infof("UpdateProfile start")
+// UpdateMyProfile is the resolver for the updateMyProfile field.
+func (r *mutationResolver) UpdateMyProfile(ctx context.Context, input model.UpdateProfileInput) (*model.UserProfile, error) {
+	logger.Infof("UpdateMyProfile start")
 	// Authorization 헤더에서 access token 가져오기
 	token, err := middleware.ExtractAccessToken(ctx)
 	if err != nil {
@@ -82,8 +82,8 @@ func (r *mutationResolver) UpdateProfile(ctx context.Context, input model.Update
 	return updatedProfile, nil
 }
 
-// Me is the resolver for the me field.
-func (r *queryResolver) Me(ctx context.Context) (*model.UserProfile, error) {
+// MyProfile is the resolver for the myProfile field.
+func (r *queryResolver) MyProfile(ctx context.Context) (*model.UserProfile, error) {
 	logger.Infof("GetMyProfileInfo start")
 	defer logger.Infof("GetMyProfileInfo end")
 
@@ -128,4 +128,47 @@ func (r *queryResolver) Me(ctx context.Context) (*model.UserProfile, error) {
 		FollowingCount: dtoProfile.FollowingCount,
 		Theme:          dtoProfile.Theme,
 	}, nil
+}
+
+// UserProfile is the resolver for the userProfile field.
+func (r *queryResolver) UserProfile(ctx context.Context, userID string) (*model.UserProfile, error) {
+	logger.Infof("GetUserProfile start, userID=%s", userID)
+	defer logger.Infof("GetUserProfile end, userID=%s", userID)
+
+	// 1. userID 파싱
+	parsedUserID, err := uuid.Parse(userID)
+	if err != nil {
+		logger.Warnf("invalid userID format: %s", userID)
+		return nil, errors.New("invalid user id")
+	}
+
+	// 2. 서비스 호출 (공개 프로필 조회)
+	dtoProfile, err := r.ProfileService.GetUserProfileInfo(ctx, parsedUserID)
+	if err != nil {
+		logger.Errorf(
+			"GetUserProfile failed, userID=%s, err=%v",
+			userID,
+			err,
+		)
+		return nil, err
+	}
+
+	// 3. DTO → GraphQL Model 변환
+	result := &model.UserProfile{
+		ID:             dtoProfile.ID,
+		UserID:         dtoProfile.UserID.String(),
+		Nickname:       dtoProfile.Nickname,
+		FollowerCount:  dtoProfile.FollowerCount,
+		FollowingCount: dtoProfile.FollowingCount,
+		Theme:          dtoProfile.Theme,
+	}
+
+	if dtoProfile.Bio != "" {
+		result.Bio = &dtoProfile.Bio
+	}
+	if dtoProfile.ProfileImage != "" {
+		result.ProfileImage = &dtoProfile.ProfileImage
+	}
+
+	return result, nil
 }

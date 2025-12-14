@@ -1,11 +1,36 @@
 package repository
 
 import (
+	"context"
+	"fmt"
+	"time"
+
+	"github.com/google/uuid"
+	"github.com/rainbow96bear/planet_user_server/internal/models"
+	"github.com/rainbow96bear/planet_user_server/internal/tx"
+	"github.com/rainbow96bear/planet_utils/pkg/logger"
 	"gorm.io/gorm"
 )
 
 type CalendarEventsRepository struct {
-	DB *gorm.DB
+	db *gorm.DB
+}
+
+func NewCalendarEventsRepository(db *gorm.DB) *CalendarEventsRepository {
+	if db == nil {
+		panic("database connection is required")
+	}
+	return &CalendarEventsRepository{
+		db: db,
+	}
+}
+
+func (r *CalendarEventsRepository) getDB(ctx context.Context) *gorm.DB {
+	// tx 패키지를 사용하여 Context에서 트랜잭션을 추출합니다.
+	if tx := tx.GetTx(ctx); tx != nil {
+		return tx.WithContext(ctx)
+	}
+	return r.db.WithContext(ctx) // 기본 DB 연결 반환
 }
 
 // -------------------------
@@ -22,22 +47,46 @@ type CalendarEventsRepository struct {
 // 	return tx, nil
 // }
 
-// // -------------------------
-// // 캘린더 이벤트 생성 (Todos 포함)
-// // -------------------------
-// func (r *CalendarEventsRepository) CreateCalendarEvent(ctx context.Context, event *models.CalendarEvents) error {
-// 	logger.Infof("Creating calendar event for user: %s", event.UserID)
+// -------------------------
+// 캘린더 이벤트 생성 (Todos 포함)
+// -------------------------
+func (r *CalendarEventsRepository) CreateCalendarEvent(
+	ctx context.Context,
+	event *models.CalendarEvent,
+) (*models.CalendarEvent, error) {
 
-// 	return r.DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-// 		// 1. Calendar Event 삽입
-// 		if err := tx.Create(event).Error; err != nil {
-// 			return fmt.Errorf("failed to insert calendar event: %w", err)
-// 		}
+	db := r.getDB(ctx)
 
-// 		logger.Infof("Successfully created calendar event %s with %d todos", event.ID, len(event.Todos))
-// 		return nil
-// 	})
-// }
+	logger.Debugf(
+		"[CalendarRepo] create start user=%s title=%s",
+		event.UserID,
+		event.Title,
+	)
+
+	err := db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if err := tx.Create(event).Error; err != nil {
+			logger.Errorf(
+				"[CalendarRepo] insert failed user=%s err=%v",
+				event.UserID,
+				err,
+			)
+			return fmt.Errorf("failed to insert calendar event: %w", err)
+		}
+		return nil
+	})
+
+	if err != nil {
+		return nil, err
+	}
+
+	logger.Infof(
+		"[CalendarRepo] created event id=%s user=%s",
+		event.ID,
+		event.UserID,
+	)
+
+	return event, nil
+}
 
 // // -------------------------
 // // 단일 조회 (Todos 포함)
@@ -116,62 +165,62 @@ type CalendarEventsRepository struct {
 
 // // FindEventsWithoutTodosByVisibility: 특정 기간 동안의 Event를 Todo 없이 조회합니다.
 // // CalendarService의 GetEventsWithoutTodos에서 사용됩니다. (캐싱 목적)
-// func (r *CalendarEventsRepository) FindEventsWithoutTodosByVisibility(
-// 	ctx context.Context,
-// 	UserID uuid.UUID,
-// 	visibilities []string,
-// 	startAt, endAt time.Time,
-// ) ([]*models.CalendarEvents, error) {
-// 	logger.Infof("Fetching events (without todos) for user=%s with visibilities=%v", UserID, visibilities)
+func (r *CalendarEventsRepository) FindEventsWithoutTodosByVisibility(
+	ctx context.Context,
+	UserID uuid.UUID,
+	visibilities []string,
+	startAt, endAt time.Time,
+) ([]*models.CalendarEvent, error) {
+	db := r.getDB(ctx)
+	logger.Infof("Fetching events (without todos) for user=%s with visibilities=%v", UserID, visibilities)
 
-// 	if len(visibilities) == 0 {
-// 		return []*models.CalendarEvents{}, nil
-// 	}
+	if len(visibilities) == 0 {
+		return []*models.CalendarEvent{}, nil
+	}
 
-// 	var events []*models.CalendarEvents
-// 	// 💡 Preload("Todos")를 제거하여 Todo 조인을 막습니다.
-// 	if err := r.DB.WithContext(ctx).
-// 		Where("user_id = ? AND visibility IN ? AND start_at < ? AND end_at >= ?", UserID, visibilities, endAt, startAt).
-// 		Order("start_at ASC").
-// 		Find(&events).Error; err != nil {
-// 		return nil, fmt.Errorf("failed to query events without todos by visibility: %w", err)
-// 	}
+	var events []*models.CalendarEvent
+	// 💡 Preload("Todos")를 제거하여 Todo 조인을 막습니다.
+	if err := db.WithContext(ctx).
+		Where("user_id = ? AND visibility IN ? AND start_at < ? AND end_at >= ?", UserID, visibilities, endAt, startAt).
+		Order("start_at ASC").
+		Find(&events).Error; err != nil {
+		return nil, fmt.Errorf("failed to query events without todos by visibility: %w", err)
+	}
 
-// 	logger.Infof("Found %d calendar events (without todos) for user %s with visibility filter", len(events), UserID)
-// 	return events, nil
-// }
+	logger.Infof("Found %d calendar events (without todos) for user %s with visibility filter", len(events), UserID)
+	return events, nil
+}
 
 // // ------------------------------------------
 // // 조회 함수 2: 일별 뷰 (Event + Todo, 캐시 미지원)
 // // ------------------------------------------
 
-// // FindCalendarsWithTodos: 특정 기간 동안의 Event와 연결된 Todo를 함께 조회합니다.
-// // CalendarService의 GetMyCalendarDailyData/GetUserCalendarDailyData에서 사용됩니다.
-// func (r *CalendarEventsRepository) FindCalendarsWithTodos(
-// 	ctx context.Context,
-// 	UserID uuid.UUID,
-// 	visibilities []string,
-// 	startAt, endAt time.Time,
-// ) ([]*models.CalendarEvents, error) {
-// 	logger.Infof("Fetching calendars (with todos) for user=%s with visibilities=%v", UserID, visibilities)
+func (r *CalendarEventsRepository) FindCalendarsWithTodos(
+	ctx context.Context,
+	UserID uuid.UUID,
+	visibilities []string,
+	startAt, endAt time.Time,
+) ([]*models.CalendarEvent, error) {
+	db := r.getDB(ctx)
+	logger.Infof("Fetching calendars (with todos) for user=%s with visibilities=%v", UserID, visibilities)
 
-// 	if len(visibilities) == 0 {
-// 		return []*models.CalendarEvents{}, nil
-// 	}
+	if len(visibilities) == 0 {
+		return []*models.CalendarEvent{}, nil
+	}
 
-// 	var events []*models.CalendarEvents
-// 	// 💡 Preload("Todos")를 포함하여 Todo를 함께 조회합니다.
-// 	if err := r.DB.WithContext(ctx).
-// 		Where("user_id = ? AND visibility IN ? AND start_at < ? AND end_at >= ?", UserID, visibilities, endAt, startAt).
-// 		Order("start_at ASC").
-// 		Preload("Todos").
-// 		Find(&events).Error; err != nil {
-// 		return nil, fmt.Errorf("failed to query calendars with todos by visibility: %w", err)
-// 	}
+	var events []*models.CalendarEvent
+	// 💡 Preload("Todos")를 포함하여 Todo를 함께 조회합니다.
+	if err := db.WithContext(ctx).
+		Where("user_id = ? AND visibility IN ? AND start_at < ? AND end_at >= ?", UserID, visibilities, endAt, startAt).
+		Order("start_at ASC").
+		Preload("Todos").
+		Find(&events).Error; err != nil {
+		return nil, fmt.Errorf("failed to query calendars with todos by visibility: %w", err)
+	}
 
-// 	logger.Infof("Found %d calendar events (with todos) for user %s with visibility filter", len(events), UserID)
-// 	return events, nil
-// }
+	logger.Infof("Found %d calendar events (with todos) for user %s with visibility filter", len(events), UserID)
+	return events, nil
+}
 
 // func (r *CalendarEventsRepository) FindEventWithTodosByID(
 // 	ctx context.Context,

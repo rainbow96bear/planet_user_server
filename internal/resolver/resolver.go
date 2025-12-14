@@ -8,13 +8,16 @@ import "github.com/rainbow96bear/planet_user_server/internal/service"
 // here.
 
 type Resolver struct {
-	ProfileService service.ProfileServiceInterface
+	ProfileService  service.ProfileServiceInterface
+	CalendarService service.CalendarServiceInterface
 }
 
 func NewResolver(
 	profileSvc service.ProfileServiceInterface,
+	calendarSvc service.CalendarServiceInterface,
 ) *Resolver {
 	return &Resolver{
-		ProfileService: profileSvc,
+		ProfileService:  profileSvc,
+		CalendarService: calendarSvc,
 	}
 }
