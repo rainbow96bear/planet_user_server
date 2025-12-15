@@ -25,7 +25,7 @@ type ProfileServiceInterface interface {
 }
 
 type ProfileService struct {
-	DB           *gorm.DB
+	db           *gorm.DB
 	ProfilesRepo *repository.ProfileRepository
 }
 
@@ -34,7 +34,7 @@ func NewProfileService(
 	profilesRepo *repository.ProfileRepository,
 ) ProfileServiceInterface {
 	return &ProfileService{
-		DB:           db,
+		db:           db,
 		ProfilesRepo: profilesRepo,
 	}
 }
@@ -42,7 +42,7 @@ func NewProfileService(
 // 닉네임 중복 검사
 func (s *ProfileService) IsNicknameAvailable(ctx context.Context, nickname string) (bool, error) {
 	var count int64
-	if err := s.DB.WithContext(ctx).Model(&models.Profile{}).Where("nickname = ?", nickname).Count(&count).Error; err != nil {
+	if err := s.db.WithContext(ctx).Model(&models.Profile{}).Where("nickname = ?", nickname).Count(&count).Error; err != nil {
 		return false, err
 	}
 	return count == 0, nil
@@ -53,7 +53,7 @@ func (s *ProfileService) CreateProfile(ctx context.Context, req dto.CreateProfil
 	logger.Debugf("ProfileService: CreateProfile attempt for nickname=%s", req.Nickname)
 
 	// 0. 트랜잭션 시작
-	txDB, newCtx, err := tx.BeginTx(ctx, s.DB)
+	txDB, newCtx, err := tx.BeginTx(ctx, s.db)
 	if err != nil {
 		logger.Errorf("CreateProfile: failed to start transaction: %v", err)
 		return nil, errors.New("failed to start transaction")

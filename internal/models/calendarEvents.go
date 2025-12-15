@@ -20,8 +20,7 @@ type CalendarEvent struct {
 	CreatedAt   time.Time
 	UpdatedAt   time.Time
 
-	// Todo 관계 추가
-	Todos []Todo `gorm:"foreignKey:CalendarEventID;constraint:OnDelete:CASCADE"`
+	Todos []Todo `gorm:"foreignKey:CalendarEventID;references:ID;constraint:OnDelete:CASCADE"`
 }
 
 func (CalendarEvent) TableName() string {

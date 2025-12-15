@@ -2,6 +2,7 @@ package repository
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
@@ -88,76 +89,111 @@ func (r *CalendarEventsRepository) CreateCalendarEvent(
 	return event, nil
 }
 
-// // -------------------------
-// // 단일 조회 (Todos 포함)
-// // -------------------------
-// func (r *CalendarEventsRepository) FindByID(ctx context.Context, eventID uuid.UUID) (*models.CalendarEvents, error) {
-// 	var event models.CalendarEvents
-// 	if err := r.DB.WithContext(ctx).
-// 		Preload("Todos"). // Todo도 함께 조회
-// 		First(&event, "id = ?", eventID).Error; err != nil {
-// 		if err == gorm.ErrRecordNotFound {
-// 			return nil, nil
-// 		}
-// 		return nil, fmt.Errorf("failed to find calendar event: %w", err)
-// 	}
-// 	return &event, nil
-// }
+// -------------------------
+// 단일 조회 (Todos 포함)
+// -------------------------
+func (r *CalendarEventsRepository) FindByID(
+	ctx context.Context,
+	eventID uuid.UUID,
+) (*models.CalendarEvent, error) {
+	db := r.getDB(ctx)
+
+	var event models.CalendarEvent
+	if err := db.
+		Preload("Todos").
+		First(&event, "id = ?", eventID).Error; err != nil {
+
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, nil
+		}
+
+		return nil, fmt.Errorf("failed to find calendar event: %w", err)
+	}
+
+	return &event, nil
+}
 
 // // -------------------------
 // // 캘린더 이벤트 삭제 (Todos 포함)
 // // -------------------------
-// func (r *CalendarEventsRepository) DeleteCalendarEvent(ctx context.Context, eventID uuid.UUID) error {
-// 	logger.Infof("Deleting calendar event: %s", eventID)
+func (r *CalendarEventsRepository) DeleteCalendarEvent(ctx context.Context, eventID uuid.UUID) error {
+	db := r.getDB(ctx)
+	logger.Infof("Deleting calendar event: %s", eventID)
 
-// 	return r.DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-// 		// Todos 먼저 삭제 (Foreign Key 제약 조건)
-// 		if err := tx.Where("event_id = ?", eventID).Delete(&models.Todos{}).Error; err != nil {
-// 			return fmt.Errorf("failed to delete todos: %w", err)
-// 		}
-// 		// Event 삭제
-// 		if err := tx.Where("id = ?", eventID).Delete(&models.CalendarEvents{}).Error; err != nil {
-// 			return fmt.Errorf("failed to delete calendar event: %w", err)
-// 		}
-// 		logger.Infof("Deleted calendar event %s and its todos", eventID)
-// 		return nil
-// 	})
-// }
+	return db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		// Todos 먼저 삭제 (Foreign Key 제약 조건)
+		if err := tx.Where("calendar_event_id = ?", eventID).Delete(&models.Todo{}).Error; err != nil {
+			return fmt.Errorf("failed to delete todos: %w", err)
+		}
+		// Event 삭제
+		if err := tx.Where("id = ?", eventID).Delete(&models.CalendarEvent{}).Error; err != nil {
+			return fmt.Errorf("failed to delete calendar event: %w", err)
+		}
+		logger.Infof("Deleted calendar event %s and its todos", eventID)
+		return nil
+	})
+}
 
-// // -------------------------
-// // 캘린더 이벤트 업데이트 (Todos 포함)
-// // -------------------------
-// func (r *CalendarEventsRepository) UpdateCalendarEvent(ctx context.Context, event *models.CalendarEvents) error {
-// 	logger.Infof("[UpdateCalendar] eventID=%s", event.ID)
+// -------------------------
+// 캘린더 이벤트 업데이트 (Todos 포함)
+// -------------------------
+func (r *CalendarEventsRepository) UpdateCalendarEvent(
+	ctx context.Context,
+	event *models.CalendarEvent,
+) error {
+	db := r.getDB(ctx)
 
-// 	return r.DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-// 		// CalendarEvent 업데이트
-// 		if err := tx.Save(event).Error; err != nil {
-// 			logger.Errorf("[UpdateCalendar] failed to update event: %v", err)
-// 			return fmt.Errorf("failed to update calendar event: %w", err)
-// 		}
+	logger.Infof("[UpdateCalendar] start eventID=%s", event.ID)
 
-// 		// 기존 Todos 삭제 후 새로 삽입
-// 		if err := tx.Where("event_id = ?", event.ID).Delete(&models.Todos{}).Error; err != nil {
-// 			logger.Errorf("[UpdateCalendar] failed to delete old todos: %v", err)
-// 			return fmt.Errorf("failed to delete old todos: %w", err)
-// 		}
-// 		for i := range event.Todos {
-// 			// 업데이트 시에도 새 ID 할당 (혹은 기존 ID 재사용 로직 구현 필요하지만, 여기서는 단순화하여 새 삽입)
-// 			event.Todos[i].ID = uuid.New()
-// 			event.Todos[i].EventID = event.ID
-// 		}
-// 		if len(event.Todos) > 0 {
-// 			if err := tx.Create(&event.Todos).Error; err != nil {
-// 				logger.Errorf("[UpdateCalendar] failed to insert new todos: %v", err)
-// 				return fmt.Errorf("failed to insert new todos: %w", err)
-// 			}
-// 		}
+	return db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		// CalendarEvent 업데이트 (Todos 제외)
+		if err := tx.Model(&models.CalendarEvent{}).
+			Where("id = ?", event.ID).
+			Updates(map[string]interface{}{
+				"title":       event.Title,
+				"emoji":       event.Emoji,
+				"description": event.Description,
+				"start_at":    event.StartAt,
+				"end_at":      event.EndAt,
+				"visibility":  event.Visibility,
+				"updated_at":  time.Now(),
+			}).Error; err != nil {
+			logger.Errorf("[UpdateCalendar] event update failed: %v", err)
+			return fmt.Errorf("failed to update calendar event: %w", err)
+		}
 
-// 		logger.Infof("[UpdateCalendar] successfully updated eventID=%s with %d todos", event.ID, len(event.Todos))
-// 		return nil
-// 	})
-// }
+		// 기존 Todos 삭제
+		if err := tx.
+			Where("calendar_event_id = ?", event.ID).
+			Delete(&models.Todo{}).Error; err != nil {
+			logger.Errorf("[UpdateCalendar] delete todos failed: %v", err)
+			return fmt.Errorf("failed to delete todos: %w", err)
+		}
+
+		// 새 Todos 삽입
+		if len(event.Todos) > 0 {
+			now := time.Now()
+			for i := range event.Todos {
+				event.Todos[i].ID = uuid.New()
+				event.Todos[i].CalendarEventID = event.ID
+				event.Todos[i].CreatedAt = now
+				event.Todos[i].UpdatedAt = now
+			}
+
+			if err := tx.Create(&event.Todos).Error; err != nil {
+				logger.Errorf("[UpdateCalendar] insert todos failed: %v", err)
+				return fmt.Errorf("failed to insert todos: %w", err)
+			}
+		}
+
+		logger.Infof(
+			"[UpdateCalendar] success eventID=%s todos=%d",
+			event.ID,
+			len(event.Todos),
+		)
+		return nil
+	})
+}
 
 // // ------------------------------------------
 // // 조회 함수 1: 월별 뷰 (Event만, 캐시 지원)
@@ -217,7 +253,6 @@ func (r *CalendarEventsRepository) FindCalendarsWithTodos(
 		Find(&events).Error; err != nil {
 		return nil, fmt.Errorf("failed to query calendars with todos by visibility: %w", err)
 	}
-
 	logger.Infof("Found %d calendar events (with todos) for user %s with visibility filter", len(events), UserID)
 	return events, nil
 }

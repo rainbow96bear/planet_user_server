@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/rainbow96bear/planet_user_server/dto"
 	"github.com/rainbow96bear/planet_user_server/graph/model"
 	"github.com/rainbow96bear/planet_user_server/internal/mapper"
@@ -47,8 +48,37 @@ func (r *mutationResolver) UpdateCalendarEvent(ctx context.Context, eventID stri
 }
 
 // DeleteCalendarEvent is the resolver for the deleteCalendarEvent field.
-func (r *mutationResolver) DeleteCalendarEvent(ctx context.Context, eventID string) (bool, error) {
-	panic(fmt.Errorf("not implemented: DeleteCalendarEvent - deleteCalendarEvent"))
+func (r *mutationResolver) DeleteCalendarEvent(
+	ctx context.Context,
+	eventID string,
+) (bool, error) {
+
+	// 1. 토큰 추출
+	token, err := middleware.ExtractAccessToken(ctx)
+	if err != nil {
+		return false, errors.New("unauthorized")
+	}
+
+	// 2. 사용자 ID 추출
+	userID, err := utils.GetUserID(token)
+	if err != nil {
+		logger.Warnf("invalid token")
+		return false, errors.New("unauthorized")
+	}
+
+	// 3. eventID string → uuid.UUID 변환 ⭐
+	eventUUID, err := uuid.Parse(eventID)
+	if err != nil {
+		logger.Warnf("invalid eventID: %s", eventID)
+		return false, errors.New("invalid event id")
+	}
+
+	// 4. 서비스 호출
+	if err := r.CalendarService.DeleteCalendarEvent(ctx, userID, eventUUID); err != nil {
+		return false, err
+	}
+
+	return true, nil
 }
 
 // MyCalendarEvents is the resolver for the myCalendarEvents field.

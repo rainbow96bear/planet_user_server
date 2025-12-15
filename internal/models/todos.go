@@ -13,6 +13,8 @@ type Todo struct {
 	IsDone          bool
 	CreatedAt       time.Time
 	UpdatedAt       time.Time
+}
 
-	CalendarEvent CalendarEvent `gorm:"foreignKey:CalendarEventID"`
+func (Todo) TableName() string {
+	return "todos"
 }

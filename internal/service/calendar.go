@@ -7,10 +7,12 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/rainbow96bear/planet_user_server/dto"
 	"github.com/rainbow96bear/planet_user_server/graph/model"
 	"github.com/rainbow96bear/planet_user_server/internal/mapper"
 	"github.com/rainbow96bear/planet_user_server/internal/models"
 	"github.com/rainbow96bear/planet_user_server/internal/repository"
+	"github.com/rainbow96bear/planet_user_server/internal/tx"
 	"github.com/rainbow96bear/planet_utils/pkg/logger"
 	"gorm.io/gorm"
 )
@@ -25,12 +27,17 @@ type CalendarServiceInterface interface {
 		ctx context.Context,
 		userID uuid.UUID,
 		date time.Time) ([]*model.Calendar, error)
+	DeleteCalendarEvent(
+		ctx context.Context,
+		UserID uuid.UUID,
+		eventID uuid.UUID) error
 }
 
 type CalendarService struct {
 	DB                 *gorm.DB
 	ProfilesRepo       *repository.ProfileRepository
 	CalendarEventsRepo *repository.CalendarEventsRepository
+	// TodosRepo          *repository.TodosRepository
 	// FollowsRepo        *repository.FollowsRepoitory
 }
 
@@ -38,11 +45,13 @@ func NewCalendarService(
 	db *gorm.DB,
 	profilesRepo *repository.ProfileRepository,
 	calendarRepo *repository.CalendarEventsRepository,
+	// todoRepo *repository.TodosRepository,
 ) CalendarServiceInterface {
 	return &CalendarService{
 		DB:                 db,
 		ProfilesRepo:       profilesRepo,
 		CalendarEventsRepo: calendarRepo,
+		// TodosRepo:          todoRepo,
 	}
 }
 
@@ -152,7 +161,11 @@ func (s *CalendarService) GetMyCalendarEventsByDate(ctx context.Context, userID 
 		logger.Errorf("[GetMyCalendarEventsByDate] FindCalendarsWithTodos failed: %v", err)
 		return nil, errors.New("failed to get calendar events")
 	}
-
+	for _, v := range calendars {
+		for _, p := range v.Todos {
+			logger.Debugf("P : %v", p)
+		}
+	}
 	// GraphQL 모델 변환
 	return mapper.ToCalendarGraphQLList(calendars), nil
 }
@@ -258,66 +271,129 @@ func (s *CalendarService) CreateCalendarEvent(
 	cal *models.CalendarEvent,
 ) (*models.CalendarEvent, error) {
 
-	logger.Infof("[CreateCalendar] user=%s title=%s", cal.UserID, cal.Title)
+	txDB, newCtx, err := tx.BeginTx(ctx, s.DB)
+	if err != nil {
+		logger.Errorf("[CreateCalendar] failed to start transaction: %v", err)
+		return nil, errors.New("failed to start transaction")
+	}
 
+	defer func() {
+		if r := recover(); r != nil {
+			logger.Errorf("[CreateCalendar] panic occurred, rollback: %v", r)
+			txDB.Rollback()
+			panic(r)
+		}
+	}()
+
+	ctx = newCtx
+
+	logger.Infof(
+		"[CreateCalendar] start user=%s title=%s",
+		cal.UserID,
+		cal.Title,
+	)
+
+	// CalendarEvent 생성
 	created, err := s.CalendarEventsRepo.CreateCalendarEvent(ctx, cal)
 	if err != nil {
-		logger.Errorf("[CreateCalendar] failed: %v", err)
+		txDB.Rollback()
 		return nil, err
 	}
 
-	// 해당 월 캐시 삭제
-	// ClearCache(
-	// 	created.UserID,
-	// 	created.StartAt.Year(),
-	// 	int(created.StartAt.Month()),
-	// )
+	// Commit
+	if err := txDB.Commit().Error; err != nil {
+		logger.Errorf("[CreateCalendar] commit failed: %v", err)
+		return nil, err
+	}
 
 	logger.Infof(
-		"[CreateCalendar] successfully created calendar event: %s",
+		"[CreateCalendar] success calendar_event_id=%s",
 		created.ID,
 	)
 
 	return created, nil
 }
 
-// func (s *CalendarService) UpdateCalendarEvent(ctx context.Context, UserID uuid.UUID, eventID uuid.UUID, req *dto.CalendarUpdateRequest) error {
-// 	cal, err := s.CalendarEventsRepo.FindByID(ctx, eventID)
-// 	if err != nil {
-// 		return err
-// 	}
-// 	if cal.UserID != UserID {
-// 		return fmt.Errorf("unauthorized")
-// 	}
+func (s *CalendarService) UpdateCalendarEvent(
+	ctx context.Context,
+	userID uuid.UUID,
+	eventID uuid.UUID,
+	req *dto.CalendarUpdateRequest,
+) error {
+	// 트랜잭션 시작
+	txDB, newCtx, err := tx.BeginTx(ctx, s.DB)
+	if err != nil {
+		logger.Errorf("[UpdateCalendar] failed to start transaction: %v", err)
+		return errors.New("failed to start transaction")
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			txDB.Rollback()
+			panic(r)
+		}
+	}()
 
-// 	dto.UpdateCalendarModelFromRequest(cal, req)
+	ctx = newCtx
 
-// 	if err := s.CalendarEventsRepo.UpdateCalendarEvent(ctx, cal); err != nil {
-// 		return err
-// 	}
+	// 이벤트 조회 (FOR UPDATE 느낌의 일관성)
+	cal, err := s.CalendarEventsRepo.FindByID(ctx, eventID)
+	if err != nil {
+		txDB.Rollback()
+		return err
+	}
+	if cal == nil {
+		txDB.Rollback()
+		return fmt.Errorf("calendar event not found")
+	}
 
-// 	// Event 업데이트 시 해당 월의 모든 가시성 캐시를 삭제
-// 	ClearCache(cal.UserID, cal.StartAt.Year(), int(cal.StartAt.Month()))
-// 	return nil
-// }
+	// 권한 체크
+	if cal.UserID != userID {
+		txDB.Rollback()
+		return fmt.Errorf("unauthorized")
+	}
 
-// func (s *CalendarService) DeleteCalendarEvent(ctx context.Context, UserID uuid.UUID, eventID uuid.UUID) error {
-// 	cal, err := s.CalendarEventsRepo.FindByID(ctx, eventID)
-// 	if err != nil {
-// 		return err
-// 	}
-// 	if cal == nil || cal.UserID != UserID {
-// 		return fmt.Errorf("unauthorized or not found")
-// 	}
+	// 요청 → 모델 반영
+	dto.UpdateCalendarModelFromRequest(cal, req)
 
-// 	if err := s.CalendarEventsRepo.DeleteCalendarEvent(ctx, eventID); err != nil {
-// 		return err
-// 	}
+	// 이벤트 + Todos 업데이트
+	if err := s.CalendarEventsRepo.UpdateCalendarEvent(ctx, cal); err != nil {
+		txDB.Rollback()
+		return err
+	}
 
-// 	// Event 삭제 시 해당 월의 특정 가시성 캐시를 삭제
-// 	DeleteCalendarCache(UserID, cal.StartAt.Year(), int(cal.StartAt.Month()), cal.Visibility)
-// 	return nil
-// }
+	// (선택) 캐시 무효화, 후처리
+	// ClearCalendarCache(userID, cal.StartAt)
+
+	// 커밋
+	if err := txDB.Commit().Error; err != nil {
+		logger.Errorf("[UpdateCalendar] commit failed: %v", err)
+		return errors.New("failed to commit transaction")
+	}
+
+	logger.Infof(
+		"[UpdateCalendar] success user=%s eventID=%s",
+		userID,
+		eventID,
+	)
+
+	return nil
+}
+
+func (s *CalendarService) DeleteCalendarEvent(ctx context.Context, UserID uuid.UUID, eventID uuid.UUID) error {
+	cal, err := s.CalendarEventsRepo.FindByID(ctx, eventID)
+	if err != nil {
+		return err
+	}
+	if cal == nil || cal.UserID != UserID {
+		return fmt.Errorf("unauthorized or not found")
+	}
+
+	if err := s.CalendarEventsRepo.DeleteCalendarEvent(ctx, eventID); err != nil {
+		return err
+	}
+
+	return nil
+}
 
 // // ----------------------------
 // // Utility

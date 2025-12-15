@@ -2,8 +2,11 @@ package repository
 
 import (
 	"context"
+	"fmt"
 
+	"github.com/rainbow96bear/planet_user_server/internal/models"
 	"github.com/rainbow96bear/planet_user_server/internal/tx"
+	"github.com/rainbow96bear/planet_utils/pkg/logger"
 	"gorm.io/gorm"
 )
 
@@ -39,19 +42,43 @@ func (r *TodosRepository) getDB(ctx context.Context) *gorm.DB {
 // 	return tx, nil
 // }
 
-// // -------------------------
-// // 단일 Todo 생성
-// // -------------------------
-// func (r *TodosRepository) CreateTodo(ctx context.Context, todo *models.Todos) error {
-// 	logger.Infof("Creating todo for event: %s", todo.EventID)
+// -------------------------
+// 단일 Todo 생성
+// -------------------------
+func (r *TodosRepository) CreateTodos(
+	ctx context.Context,
+	todos []models.Todo,
+) error {
+	if len(todos) == 0 {
+		logger.Debugf("[TodosRepo] no todos to create")
+		return nil
+	}
 
-// 	if err := r.DB.WithContext(ctx).Create(todo).Error; err != nil {
-// 		return fmt.Errorf("failed to create todo: %w", err)
-// 	}
+	db := r.getDB(ctx)
 
-// 	logger.Infof("Successfully created todo: %s", todo.ID)
-// 	return nil
-// }
+	logger.Infof(
+		"[TodosRepo] creating %d todos (calendar_event_id=%s)",
+		len(todos),
+		todos[0].CalendarEventID,
+	)
+
+	if err := db.WithContext(ctx).Create(&todos).Error; err != nil {
+		logger.Errorf(
+			"[TodosRepo] failed to create todos (calendar_event_id=%s): %v",
+			todos[0].CalendarEventID,
+			err,
+		)
+		return fmt.Errorf("failed to create todos: %w", err)
+	}
+
+	logger.Infof(
+		"[TodosRepo] successfully created %d todos (calendar_event_id=%s)",
+		len(todos),
+		todos[0].CalendarEventID,
+	)
+
+	return nil
+}
 
 // // -------------------------
 // // Todo 상태 업데이트
