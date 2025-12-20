@@ -60,14 +60,6 @@ type Calendar {
   updatedAt: Time!
 }
 
-type Todo {
-  id: ID!
-  content: String!
-  isDone: Boolean!
-  createdAt: Time!
-  updatedAt: Time!
-}
-
 # ------------------------------------
 # Inputs
 # ------------------------------------

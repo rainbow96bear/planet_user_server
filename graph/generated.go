@@ -16,6 +16,7 @@ import (
 	"github.com/99designs/gqlgen/graphql"
 	"github.com/99designs/gqlgen/graphql/introspection"
 	"github.com/rainbow96bear/planet_user_server/graph/model"
+	"github.com/rainbow96bear/planet_user_server/internal/models"
 	gqlparser "github.com/vektah/gqlparser/v2"
 	"github.com/vektah/gqlparser/v2/ast"
 )
@@ -42,6 +43,7 @@ type Config struct {
 type ResolverRoot interface {
 	Mutation() MutationResolver
 	Query() QueryResolver
+	Todo() TodoResolver
 }
 
 type DirectiveRoot struct {
@@ -67,6 +69,7 @@ type ComplexityRoot struct {
 		Empty               func(childComplexity int) int
 		UpdateCalendarEvent func(childComplexity int, eventID string, input model.UpdateCalendarInput) int
 		UpdateMyProfile     func(childComplexity int, input model.UpdateProfileInput) int
+		UpdateTodoDone      func(childComplexity int, id string, isDone bool) int
 	}
 
 	NicknameAvailability struct {
@@ -81,16 +84,18 @@ type ComplexityRoot struct {
 		MyCalendarEvents          func(childComplexity int, year int32, month int32) int
 		MyCalendarEventsByDate    func(childComplexity int, date time.Time) int
 		MyProfile                 func(childComplexity int) int
+		Todo                      func(childComplexity int, id string) int
 		UserCalendarEvents        func(childComplexity int, userID string, year int32, month int32) int
 		UserProfile               func(childComplexity int, userID string) int
 	}
 
 	Todo struct {
-		Content   func(childComplexity int) int
-		CreatedAt func(childComplexity int) int
-		ID        func(childComplexity int) int
-		IsDone    func(childComplexity int) int
-		UpdatedAt func(childComplexity int) int
+		CalendarEventID func(childComplexity int) int
+		Content         func(childComplexity int) int
+		CreatedAt       func(childComplexity int) int
+		ID              func(childComplexity int) int
+		IsDone          func(childComplexity int) int
+		UpdatedAt       func(childComplexity int) int
 	}
 
 	UserProfile struct {
@@ -113,6 +118,7 @@ type MutationResolver interface {
 	UpdateCalendarEvent(ctx context.Context, eventID string, input model.UpdateCalendarInput) (*model.Calendar, error)
 	DeleteCalendarEvent(ctx context.Context, eventID string) (bool, error)
 	UpdateMyProfile(ctx context.Context, input model.UpdateProfileInput) (*model.UserProfile, error)
+	UpdateTodoDone(ctx context.Context, id string, isDone bool) (*models.Todo, error)
 }
 type QueryResolver interface {
 	Empty(ctx context.Context) (*string, error)
@@ -123,6 +129,11 @@ type QueryResolver interface {
 	CheckNicknameAvailability(ctx context.Context, nickname string) (*model.NicknameAvailability, error)
 	MyProfile(ctx context.Context) (*model.UserProfile, error)
 	UserProfile(ctx context.Context, userID string) (*model.UserProfile, error)
+	Todo(ctx context.Context, id string) (*models.Todo, error)
+}
+type TodoResolver interface {
+	ID(ctx context.Context, obj *models.Todo) (string, error)
+	CalendarEventID(ctx context.Context, obj *models.Todo) (*string, error)
 }
 
 type executableSchema struct {
@@ -255,6 +266,17 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.complexity.Mutation.UpdateMyProfile(childComplexity, args["input"].(model.UpdateProfileInput)), true
+	case "Mutation.updateTodoDone":
+		if e.complexity.Mutation.UpdateTodoDone == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_updateTodoDone_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.complexity.Mutation.UpdateTodoDone(childComplexity, args["id"].(string), args["isDone"].(bool)), true
 
 	case "NicknameAvailability.available":
 		if e.complexity.NicknameAvailability.Available == nil {
@@ -325,6 +347,17 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.complexity.Query.MyProfile(childComplexity), true
+	case "Query.todo":
+		if e.complexity.Query.Todo == nil {
+			break
+		}
+
+		args, err := ec.field_Query_todo_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.complexity.Query.Todo(childComplexity, args["id"].(string)), true
 	case "Query.userCalendarEvents":
 		if e.complexity.Query.UserCalendarEvents == nil {
 			break
@@ -348,6 +381,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 
 		return e.complexity.Query.UserProfile(childComplexity, args["userId"].(string)), true
 
+	case "Todo.calendarEventId":
+		if e.complexity.Todo.CalendarEventID == nil {
+			break
+		}
+
+		return e.complexity.Todo.CalendarEventID(childComplexity), true
 	case "Todo.content":
 		if e.complexity.Todo.Content == nil {
 			break
@@ -549,7 +588,7 @@ func (ec *executionContext) introspectType(name string) (*introspection.Type, er
 	return introspection.WrapTypeFromDef(ec.Schema(), ec.Schema().Types[name]), nil
 }
 
-//go:embed "graphqls/calendarEvent.graphqls" "graphqls/common.graphqls" "graphqls/nickname.graphqls" "graphqls/profile.graphqls"
+//go:embed "graphqls/calendarEvent.graphqls" "graphqls/common.graphqls" "graphqls/nickname.graphqls" "graphqls/profile.graphqls" "graphqls/todo.graphqls"
 var sourcesFS embed.FS
 
 func sourceData(filename string) string {
@@ -565,6 +604,7 @@ var sources = []*ast.Source{
 	{Name: "graphqls/common.graphqls", Input: sourceData("graphqls/common.graphqls"), BuiltIn: false},
 	{Name: "graphqls/nickname.graphqls", Input: sourceData("graphqls/nickname.graphqls"), BuiltIn: false},
 	{Name: "graphqls/profile.graphqls", Input: sourceData("graphqls/profile.graphqls"), BuiltIn: false},
+	{Name: "graphqls/todo.graphqls", Input: sourceData("graphqls/todo.graphqls"), BuiltIn: false},
 }
 var parsedSchema = gqlparser.MustLoadSchema(sources...)
 
@@ -618,6 +658,22 @@ func (ec *executionContext) field_Mutation_updateMyProfile_args(ctx context.Cont
 		return nil, err
 	}
 	args["input"] = arg0
+	return args, nil
+}
+
+func (ec *executionContext) field_Mutation_updateTodoDone_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "id", ec.unmarshalNID2string)
+	if err != nil {
+		return nil, err
+	}
+	args["id"] = arg0
+	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "isDone", ec.unmarshalNBoolean2bool)
+	if err != nil {
+		return nil, err
+	}
+	args["isDone"] = arg1
 	return args, nil
 }
 
@@ -678,6 +734,17 @@ func (ec *executionContext) field_Query_myCalendarEvents_args(ctx context.Contex
 		return nil, err
 	}
 	args["month"] = arg1
+	return args, nil
+}
+
+func (ec *executionContext) field_Query_todo_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "id", ec.unmarshalNID2string)
+	if err != nil {
+		return nil, err
+	}
+	args["id"] = arg0
 	return args, nil
 }
 
@@ -978,7 +1045,7 @@ func (ec *executionContext) _Calendar_todos(ctx context.Context, field graphql.C
 			return obj.Todos, nil
 		},
 		nil,
-		ec.marshalNTodo2ᚕᚖgithubᚗcomᚋrainbow96bearᚋplanet_user_serverᚋgraphᚋmodelᚐTodoᚄ,
+		ec.marshalNTodo2ᚕᚖgithubᚗcomᚋrainbow96bearᚋplanet_user_serverᚋinternalᚋmodelsᚐTodoᚄ,
 		true,
 		true,
 	)
@@ -994,6 +1061,8 @@ func (ec *executionContext) fieldContext_Calendar_todos(_ context.Context, field
 			switch field.Name {
 			case "id":
 				return ec.fieldContext_Todo_id(ctx, field)
+			case "calendarEventId":
+				return ec.fieldContext_Todo_calendarEventId(ctx, field)
 			case "content":
 				return ec.fieldContext_Todo_content(ctx, field)
 			case "isDone":
@@ -1320,6 +1389,61 @@ func (ec *executionContext) fieldContext_Mutation_updateMyProfile(ctx context.Co
 	}()
 	ctx = graphql.WithFieldContext(ctx, fc)
 	if fc.Args, err = ec.field_Mutation_updateMyProfile_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_updateTodoDone(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_Mutation_updateTodoDone,
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.resolvers.Mutation().UpdateTodoDone(ctx, fc.Args["id"].(string), fc.Args["isDone"].(bool))
+		},
+		nil,
+		ec.marshalNTodo2ᚖgithubᚗcomᚋrainbow96bearᚋplanet_user_serverᚋinternalᚋmodelsᚐTodo,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_Mutation_updateTodoDone(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "id":
+				return ec.fieldContext_Todo_id(ctx, field)
+			case "calendarEventId":
+				return ec.fieldContext_Todo_calendarEventId(ctx, field)
+			case "content":
+				return ec.fieldContext_Todo_content(ctx, field)
+			case "isDone":
+				return ec.fieldContext_Todo_isDone(ctx, field)
+			case "createdAt":
+				return ec.fieldContext_Todo_createdAt(ctx, field)
+			case "updatedAt":
+				return ec.fieldContext_Todo_updatedAt(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type Todo", field.Name)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_updateTodoDone_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
 		ec.Error(ctx, err)
 		return fc, err
 	}
@@ -1826,6 +1950,61 @@ func (ec *executionContext) fieldContext_Query_userProfile(ctx context.Context, 
 	return fc, nil
 }
 
+func (ec *executionContext) _Query_todo(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_Query_todo,
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.resolvers.Query().Todo(ctx, fc.Args["id"].(string))
+		},
+		nil,
+		ec.marshalOTodo2ᚖgithubᚗcomᚋrainbow96bearᚋplanet_user_serverᚋinternalᚋmodelsᚐTodo,
+		true,
+		false,
+	)
+}
+
+func (ec *executionContext) fieldContext_Query_todo(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Query",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "id":
+				return ec.fieldContext_Todo_id(ctx, field)
+			case "calendarEventId":
+				return ec.fieldContext_Todo_calendarEventId(ctx, field)
+			case "content":
+				return ec.fieldContext_Todo_content(ctx, field)
+			case "isDone":
+				return ec.fieldContext_Todo_isDone(ctx, field)
+			case "createdAt":
+				return ec.fieldContext_Todo_createdAt(ctx, field)
+			case "updatedAt":
+				return ec.fieldContext_Todo_updatedAt(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type Todo", field.Name)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Query_todo_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _Query___type(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -1934,14 +2113,14 @@ func (ec *executionContext) fieldContext_Query___schema(_ context.Context, field
 	return fc, nil
 }
 
-func (ec *executionContext) _Todo_id(ctx context.Context, field graphql.CollectedField, obj *model.Todo) (ret graphql.Marshaler) {
+func (ec *executionContext) _Todo_id(ctx context.Context, field graphql.CollectedField, obj *models.Todo) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
 		ec.OperationContext,
 		field,
 		ec.fieldContext_Todo_id,
 		func(ctx context.Context) (any, error) {
-			return obj.ID, nil
+			return ec.resolvers.Todo().ID(ctx, obj)
 		},
 		nil,
 		ec.marshalNID2string,
@@ -1954,8 +2133,8 @@ func (ec *executionContext) fieldContext_Todo_id(_ context.Context, field graphq
 	fc = &graphql.FieldContext{
 		Object:     "Todo",
 		Field:      field,
-		IsMethod:   false,
-		IsResolver: false,
+		IsMethod:   true,
+		IsResolver: true,
 		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
 			return nil, errors.New("field of type ID does not have child fields")
 		},
@@ -1963,7 +2142,36 @@ func (ec *executionContext) fieldContext_Todo_id(_ context.Context, field graphq
 	return fc, nil
 }
 
-func (ec *executionContext) _Todo_content(ctx context.Context, field graphql.CollectedField, obj *model.Todo) (ret graphql.Marshaler) {
+func (ec *executionContext) _Todo_calendarEventId(ctx context.Context, field graphql.CollectedField, obj *models.Todo) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_Todo_calendarEventId,
+		func(ctx context.Context) (any, error) {
+			return ec.resolvers.Todo().CalendarEventID(ctx, obj)
+		},
+		nil,
+		ec.marshalOID2ᚖstring,
+		true,
+		false,
+	)
+}
+
+func (ec *executionContext) fieldContext_Todo_calendarEventId(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Todo",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type ID does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Todo_content(ctx context.Context, field graphql.CollectedField, obj *models.Todo) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
 		ec.OperationContext,
@@ -1992,7 +2200,7 @@ func (ec *executionContext) fieldContext_Todo_content(_ context.Context, field g
 	return fc, nil
 }
 
-func (ec *executionContext) _Todo_isDone(ctx context.Context, field graphql.CollectedField, obj *model.Todo) (ret graphql.Marshaler) {
+func (ec *executionContext) _Todo_isDone(ctx context.Context, field graphql.CollectedField, obj *models.Todo) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
 		ec.OperationContext,
@@ -2021,7 +2229,7 @@ func (ec *executionContext) fieldContext_Todo_isDone(_ context.Context, field gr
 	return fc, nil
 }
 
-func (ec *executionContext) _Todo_createdAt(ctx context.Context, field graphql.CollectedField, obj *model.Todo) (ret graphql.Marshaler) {
+func (ec *executionContext) _Todo_createdAt(ctx context.Context, field graphql.CollectedField, obj *models.Todo) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
 		ec.OperationContext,
@@ -2050,7 +2258,7 @@ func (ec *executionContext) fieldContext_Todo_createdAt(_ context.Context, field
 	return fc, nil
 }
 
-func (ec *executionContext) _Todo_updatedAt(ctx context.Context, field graphql.CollectedField, obj *model.Todo) (ret graphql.Marshaler) {
+func (ec *executionContext) _Todo_updatedAt(ctx context.Context, field graphql.CollectedField, obj *models.Todo) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
 		ec.OperationContext,
@@ -4210,6 +4418,13 @@ func (ec *executionContext) _Mutation(ctx context.Context, sel ast.SelectionSet)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
+		case "updateTodoDone":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_updateTodoDone(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
 		default:
 			panic("unknown field " + strconv.Quote(field.Name))
 		}
@@ -4466,6 +4681,25 @@ func (ec *executionContext) _Query(ctx context.Context, sel ast.SelectionSet) gr
 			}
 
 			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
+		case "todo":
+			field := field
+
+			innerFunc := func(ctx context.Context, _ *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Query_todo(ctx, field)
+				return res
+			}
+
+			rrm := func(ctx context.Context) graphql.Marshaler {
+				return ec.OperationContext.RootResolverMiddleware(ctx,
+					func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
 		case "__type":
 			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
 				return ec._Query___type(ctx, field)
@@ -4499,7 +4733,7 @@ func (ec *executionContext) _Query(ctx context.Context, sel ast.SelectionSet) gr
 
 var todoImplementors = []string{"Todo"}
 
-func (ec *executionContext) _Todo(ctx context.Context, sel ast.SelectionSet, obj *model.Todo) graphql.Marshaler {
+func (ec *executionContext) _Todo(ctx context.Context, sel ast.SelectionSet, obj *models.Todo) graphql.Marshaler {
 	fields := graphql.CollectFields(ec.OperationContext, sel, todoImplementors)
 
 	out := graphql.NewFieldSet(fields)
@@ -4509,29 +4743,93 @@ func (ec *executionContext) _Todo(ctx context.Context, sel ast.SelectionSet, obj
 		case "__typename":
 			out.Values[i] = graphql.MarshalString("Todo")
 		case "id":
-			out.Values[i] = ec._Todo_id(ctx, field, obj)
-			if out.Values[i] == graphql.Null {
-				out.Invalids++
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Todo_id(ctx, field, obj)
+				if res == graphql.Null {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
 			}
+
+			if field.Deferrable != nil {
+				dfs, ok := deferred[field.Deferrable.Label]
+				di := 0
+				if ok {
+					dfs.AddField(field)
+					di = len(dfs.Values) - 1
+				} else {
+					dfs = graphql.NewFieldSet([]graphql.CollectedField{field})
+					deferred[field.Deferrable.Label] = dfs
+				}
+				dfs.Concurrently(di, func(ctx context.Context) graphql.Marshaler {
+					return innerFunc(ctx, dfs)
+				})
+
+				// don't run the out.Concurrently() call below
+				out.Values[i] = graphql.Null
+				continue
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+		case "calendarEventId":
+			field := field
+
+			innerFunc := func(ctx context.Context, _ *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Todo_calendarEventId(ctx, field, obj)
+				return res
+			}
+
+			if field.Deferrable != nil {
+				dfs, ok := deferred[field.Deferrable.Label]
+				di := 0
+				if ok {
+					dfs.AddField(field)
+					di = len(dfs.Values) - 1
+				} else {
+					dfs = graphql.NewFieldSet([]graphql.CollectedField{field})
+					deferred[field.Deferrable.Label] = dfs
+				}
+				dfs.Concurrently(di, func(ctx context.Context) graphql.Marshaler {
+					return innerFunc(ctx, dfs)
+				})
+
+				// don't run the out.Concurrently() call below
+				out.Values[i] = graphql.Null
+				continue
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
 		case "content":
 			out.Values[i] = ec._Todo_content(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
-				out.Invalids++
+				atomic.AddUint32(&out.Invalids, 1)
 			}
 		case "isDone":
 			out.Values[i] = ec._Todo_isDone(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
-				out.Invalids++
+				atomic.AddUint32(&out.Invalids, 1)
 			}
 		case "createdAt":
 			out.Values[i] = ec._Todo_createdAt(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
-				out.Invalids++
+				atomic.AddUint32(&out.Invalids, 1)
 			}
 		case "updatedAt":
 			out.Values[i] = ec._Todo_updatedAt(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
-				out.Invalids++
+				atomic.AddUint32(&out.Invalids, 1)
 			}
 		default:
 			panic("unknown field " + strconv.Quote(field.Name))
@@ -5141,7 +5439,11 @@ func (ec *executionContext) marshalNTime2timeᚐTime(ctx context.Context, sel as
 	return res
 }
 
-func (ec *executionContext) marshalNTodo2ᚕᚖgithubᚗcomᚋrainbow96bearᚋplanet_user_serverᚋgraphᚋmodelᚐTodoᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.Todo) graphql.Marshaler {
+func (ec *executionContext) marshalNTodo2githubᚗcomᚋrainbow96bearᚋplanet_user_serverᚋinternalᚋmodelsᚐTodo(ctx context.Context, sel ast.SelectionSet, v models.Todo) graphql.Marshaler {
+	return ec._Todo(ctx, sel, &v)
+}
+
+func (ec *executionContext) marshalNTodo2ᚕᚖgithubᚗcomᚋrainbow96bearᚋplanet_user_serverᚋinternalᚋmodelsᚐTodoᚄ(ctx context.Context, sel ast.SelectionSet, v []*models.Todo) graphql.Marshaler {
 	ret := make(graphql.Array, len(v))
 	var wg sync.WaitGroup
 	isLen1 := len(v) == 1
@@ -5165,7 +5467,7 @@ func (ec *executionContext) marshalNTodo2ᚕᚖgithubᚗcomᚋrainbow96bearᚋpl
 			if !isLen1 {
 				defer wg.Done()
 			}
-			ret[i] = ec.marshalNTodo2ᚖgithubᚗcomᚋrainbow96bearᚋplanet_user_serverᚋgraphᚋmodelᚐTodo(ctx, sel, v[i])
+			ret[i] = ec.marshalNTodo2ᚖgithubᚗcomᚋrainbow96bearᚋplanet_user_serverᚋinternalᚋmodelsᚐTodo(ctx, sel, v[i])
 		}
 		if isLen1 {
 			f(i)
@@ -5185,7 +5487,7 @@ func (ec *executionContext) marshalNTodo2ᚕᚖgithubᚗcomᚋrainbow96bearᚋpl
 	return ret
 }
 
-func (ec *executionContext) marshalNTodo2ᚖgithubᚗcomᚋrainbow96bearᚋplanet_user_serverᚋgraphᚋmodelᚐTodo(ctx context.Context, sel ast.SelectionSet, v *model.Todo) graphql.Marshaler {
+func (ec *executionContext) marshalNTodo2ᚖgithubᚗcomᚋrainbow96bearᚋplanet_user_serverᚋinternalᚋmodelsᚐTodo(ctx context.Context, sel ast.SelectionSet, v *models.Todo) graphql.Marshaler {
 	if v == nil {
 		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
 			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
@@ -5593,6 +5895,13 @@ func (ec *executionContext) marshalOTime2ᚖtimeᚐTime(ctx context.Context, sel
 	_ = ctx
 	res := graphql.MarshalTime(*v)
 	return res
+}
+
+func (ec *executionContext) marshalOTodo2ᚖgithubᚗcomᚋrainbow96bearᚋplanet_user_serverᚋinternalᚋmodelsᚐTodo(ctx context.Context, sel ast.SelectionSet, v *models.Todo) graphql.Marshaler {
+	if v == nil {
+		return graphql.Null
+	}
+	return ec._Todo(ctx, sel, v)
 }
 
 func (ec *executionContext) unmarshalOUpdateTodoInput2ᚕᚖgithubᚗcomᚋrainbow96bearᚋplanet_user_serverᚋgraphᚋmodelᚐUpdateTodoInputᚄ(ctx context.Context, v any) ([]*model.UpdateTodoInput, error) {

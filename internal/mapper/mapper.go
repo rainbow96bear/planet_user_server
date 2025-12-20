@@ -5,9 +5,13 @@ import (
 	"github.com/rainbow96bear/planet_user_server/internal/models"
 )
 
-func ToTodoGraphQL(todo *models.Todo) *model.Todo {
-	return &model.Todo{
-		ID:        todo.ID.String(),
+func ToTodoGraphQL(todo *models.Todo) *models.Todo {
+	if todo == nil {
+		return nil
+	}
+
+	return &models.Todo{
+		ID:        todo.ID,
 		Content:   todo.Content,
 		IsDone:    todo.IsDone,
 		CreatedAt: todo.CreatedAt,
@@ -20,7 +24,7 @@ func ToCalendarGraphQL(event *models.CalendarEvent) *model.Calendar {
 		return nil
 	}
 
-	todos := make([]*model.Todo, 0, len(event.Todos))
+	todos := make([]*models.Todo, 0, len(event.Todos))
 	for i := range event.Todos {
 		todos = append(todos, ToTodoGraphQL(&event.Todos[i]))
 	}
@@ -33,7 +37,7 @@ func ToCalendarGraphQL(event *models.CalendarEvent) *model.Calendar {
 		StartAt:     event.StartAt,
 		EndAt:       event.EndAt,
 		Visibility:  model.CalendarVisibility(event.Visibility),
-		Todos:       todos, // ✅ 실제 데이터 전달
+		Todos:       todos,
 		CreatedAt:   event.CreatedAt,
 		UpdatedAt:   event.UpdatedAt,
 	}

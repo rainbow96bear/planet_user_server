@@ -74,7 +74,7 @@ func ToCalendarGraphQL(
 		EndAt:      event.EndAt,
 		Visibility: model.CalendarVisibility(event.Visibility),
 
-		Todos:     []*model.Todo{}, // 나중에 preload or resolver에서 채우기
+		Todos:     []*models.Todo{}, // 나중에 preload or resolver에서 채우기
 		CreatedAt: event.CreatedAt,
 		UpdatedAt: event.UpdatedAt,
 	}

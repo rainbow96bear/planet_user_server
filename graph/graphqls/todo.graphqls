@@ -1,0 +1,29 @@
+# ------------------------------------
+# Query
+# ------------------------------------
+extend type Query {
+  # 필요하면 단건 조회 (선택)
+  todo(id: ID!): Todo
+}
+
+# ------------------------------------
+# Mutation
+# ------------------------------------
+extend type Mutation {
+  updateTodoDone(
+    id: ID!
+    isDone: Boolean!
+  ): Todo!
+}
+
+# ------------------------------------
+# Types
+# ------------------------------------
+type Todo {
+  id: ID!
+  calendarEventId: ID
+  content: String!
+  isDone: Boolean!
+  createdAt: Time!
+  updatedAt: Time!
+}

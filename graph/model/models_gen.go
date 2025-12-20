@@ -8,6 +8,8 @@ import (
 	"io"
 	"strconv"
 	"time"
+
+	"github.com/rainbow96bear/planet_user_server/internal/models"
 )
 
 type Calendar struct {
@@ -18,7 +20,7 @@ type Calendar struct {
 	StartAt     time.Time          `json:"startAt"`
 	EndAt       time.Time          `json:"endAt"`
 	Visibility  CalendarVisibility `json:"visibility"`
-	Todos       []*Todo            `json:"todos"`
+	Todos       []*models.Todo     `json:"todos"`
 	CreatedAt   time.Time          `json:"createdAt"`
 	UpdatedAt   time.Time          `json:"updatedAt"`
 }
@@ -46,14 +48,6 @@ type NicknameAvailability struct {
 }
 
 type Query struct {
-}
-
-type Todo struct {
-	ID        string    `json:"id"`
-	Content   string    `json:"content"`
-	IsDone    bool      `json:"isDone"`
-	CreatedAt time.Time `json:"createdAt"`
-	UpdatedAt time.Time `json:"updatedAt"`
 }
 
 type UpdateCalendarInput struct {

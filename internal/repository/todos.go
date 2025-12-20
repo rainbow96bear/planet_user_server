@@ -2,8 +2,10 @@ package repository
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
+	"github.com/google/uuid"
 	"github.com/rainbow96bear/planet_user_server/internal/models"
 	"github.com/rainbow96bear/planet_user_server/internal/tx"
 	"github.com/rainbow96bear/planet_utils/pkg/logger"
@@ -80,22 +82,61 @@ func (r *TodosRepository) CreateTodos(
 	return nil
 }
 
-// // -------------------------
-// // Todo 상태 업데이트
-// // -------------------------
-// func (r *TodosRepository) UpdateTodoStatus(ctx context.Context, todoID uuid.UUID, isDone bool) error {
-// 	logger.Infof("Updating todo status: %s to %v", todoID, isDone)
+// -------------------------
+// Todo 상태 업데이트
+// -------------------------
+func (r *TodosRepository) UpdateTodoStatus(
+	ctx context.Context,
+	userID uuid.UUID,
+	todoID uuid.UUID,
+	isDone bool,
+) (*models.Todo, error) {
 
-// 	if err := r.DB.WithContext(ctx).
-// 		Model(&models.Todos{}).
-// 		Where("id = ?", todoID).
-// 		Update("is_done", isDone).Error; err != nil {
-// 		return fmt.Errorf("failed to update todo status: %w", err)
-// 	}
+	db := r.getDB(ctx)
 
-// 	logger.Infof("Todo %s status updated to %v", todoID, isDone)
-// 	return nil
-// }
+	var todo models.Todo
+
+	// 1️⃣ Todo + Event 조인해서 소유권 확인
+	if err := db.
+		Joins("JOIN calendar_events ce ON ce.id = todos.calendar_event_id").
+		Where("todos.id = ? AND ce.user_id = ?", todoID, userID).
+		First(&todo).Error; err != nil {
+
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, fmt.Errorf("unauthorized or todo not found")
+		}
+		return nil, err
+	}
+
+	// 2️⃣ 상태 변경
+	todo.IsDone = isDone
+	if err := db.Save(&todo).Error; err != nil {
+		return nil, err
+	}
+
+	return &todo, nil
+}
+
+func (r *TodosRepository) FindByID(
+	ctx context.Context,
+	id uuid.UUID,
+) (*models.Todo, error) {
+	db := r.getDB(ctx)
+	var todo models.Todo
+	err := db.WithContext(ctx).
+		Preload("CalendarEvent").
+		First(&todo, "id = ?", id).
+		Error
+
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+
+	return &todo, nil
+}
 
 // // -------------------------
 // // EventID 기반 Todo 조회

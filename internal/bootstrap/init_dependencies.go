@@ -27,7 +27,7 @@ func InitDependencies(db *gorm.DB) (*Dependencies, error) {
 	// --- 1. Repository 초기화 ---
 	profileRepo := repository.NewProfilesRepository(db)
 	calendarRepo := repository.NewCalendarEventsRepository(db)
-	// todoRepo := repository.NewTodosRepository(db)
+	todoRepo := repository.NewTodosRepository(db)
 
 	// --- 2. gRPC Clients 초기화 ---
 	grpcClients, err := grpcclient.NewGrpcClients()
@@ -42,8 +42,15 @@ func InitDependencies(db *gorm.DB) (*Dependencies, error) {
 		calendarRepo,
 		// todoRepo,
 	)
+	todoService := service.NewTodoService(db,
+		todoRepo,
+	)
 
-	resolver := resolver.NewResolver(profileService, calendarService)
+	resolver := resolver.NewResolver(
+		profileService,
+		calendarService,
+		todoService,
+	)
 	// DI Container 패턴
 	return &Dependencies{
 		Repos: &Repositories{

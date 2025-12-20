@@ -23,6 +23,10 @@ type CalendarServiceInterface interface {
 		ctx context.Context,
 		userID uuid.UUID,
 		year, month int) ([]*models.CalendarEvent, error)
+	GetEventDetailWithTodosByID(
+		ctx context.Context,
+		userID uuid.UUID,
+		eventID uuid.UUID) (*models.CalendarEvent, error)
 	GetMyCalendarEventsByDate(
 		ctx context.Context,
 		userID uuid.UUID,
@@ -31,6 +35,12 @@ type CalendarServiceInterface interface {
 		ctx context.Context,
 		UserID uuid.UUID,
 		eventID uuid.UUID) error
+	UpdateCalendarEvent(
+		ctx context.Context,
+		userID uuid.UUID,
+		eventID uuid.UUID,
+		input model.UpdateCalendarInput,
+	) (*models.CalendarEvent, error)
 }
 
 type CalendarService struct {
@@ -54,48 +64,6 @@ func NewCalendarService(
 		// TodosRepo:          todoRepo,
 	}
 }
-
-// ----------------------------
-// Handler용 고수준 함수 (월별/Event 전용)
-// ----------------------------
-
-// 다른 사람 캘린더 조회 (월별, Event만)
-// func (s *CalendarService) GetUserCalendarData(ctx context.Context, nickname string, authID uuid.UUID, year, month int) (map[string]interface{}, error) {
-// 	logger.Infof("[GetUserCalendarData] nickname=%s, authUUID=%s, year=%d month=%d", nickname, authID, year, month)
-
-// 	// 사용자 UUID 조회 (Repository)
-// 	UserID, err := s.ProfilesRepo.GetUserIDByNickname(ctx, nickname)
-// 	if err != nil {
-// 		logger.Errorf("[GetUserCalendarData] failed to get user UUID: %v", err)
-// 		return nil, err
-// 	}
-
-// 	// visibility 결정
-// 	visibility := []string{"public"}
-// 	if authID != uuid.Nil && authID != UserID {
-// 		isFollow, _ := s.FollowsRepo.IsFollow(ctx, authID, UserID)
-// 		if isFollow {
-// 			visibility = append(visibility, "friends")
-// 		}
-// 	} else if authID == UserID {
-// 		visibility = append(visibility, "friends", "private")
-// 	}
-
-// 	startDate := time.Date(year, time.Month(month), 1, 0, 0, 0, 0, time.UTC)
-// 	endDate := startDate.AddDate(0, 1, 0)
-
-// 	// 💡 Todo가 없는 Event만 조회 (캐시 활용)
-// 	calendars, err := s.GetEventsWithoutTodos(ctx, UserID, visibility, startDate, endDate)
-// 	if err != nil {
-// 		return nil, err
-// 	}
-
-// 	return map[string]interface{}{
-// 		"events":    ToDTOList(calendars),
-// 		"monthData": s.GenerateMonthData(startDate),
-// 		// "completionData": 월별 조회에서는 Todo가 없으므로 반환하지 않음
-// 	}, nil
-// }
 
 // // 내 캘린더 조회 (월별, Event만)
 func (s *CalendarService) GetMyCalendarEvents(
@@ -121,27 +89,25 @@ func (s *CalendarService) GetMyCalendarEvents(
 	)
 }
 
-// func (s *CalendarService) GetEventDetailWithTodosByID(ctx context.Context, eventID uuid.UUID) (*dto.CalendarInfo, error) {
-// 	// 💡 UserID 매개변수 제거: 권한 확인을 수행하지 않으므로 필요하지 않습니다.
-// 	logger.Infof("[GetEventDetailWithTodosByID] EventID=%d", eventID)
+func (s *CalendarService) GetEventDetailWithTodosByID(
+	ctx context.Context,
+	userID uuid.UUID,
+	eventID uuid.UUID,
+) (*models.CalendarEvent, error) {
 
-// 	// 1. Repository 호출: eventID로 이벤트와 Todo를 함께 조회합니다.
-// 	event, err := s.CalendarEventsRepo.FindEventWithTodosByID(ctx, eventID)
+	logger.Infof("[GetEventDetailWithTodosByID] eventID=%s userID=%s", eventID, userID)
 
-// 	if err != nil {
-// 		// DB 조회 실패 (예: 해당 eventID의 레코드가 없는 경우)
-// 		// DTO 반환 전에 에러를 처리하여 상위 계층에 전달합니다.
-// 		return nil, fmt.Errorf("event not found or query failed for ID %d: %w", eventID, err)
-// 	}
+	event, err := s.CalendarEventsRepo.GetEventWithTodosByID(ctx, eventID)
+	if err != nil {
+		return nil, fmt.Errorf("event not found or query failed: %w", err)
+	}
 
-// 	// 2. DTO로 변환 및 반환
-// 	// event 모델에 이미 Todos가 로드되어 있다고 가정하고 DTO로 변환합니다.
-// 	eventDTO := dto.ToCalendarInfo(event)
+	if event.UserID != userID {
+		return nil, errors.New("forbidden: not your calendar event")
+	}
 
-// 	// 💡 참고: 권한(UserID/Visibility) 확인 로직은 이 함수에서 완전히 제거되었습니다.
-
-// 	return eventDTO, nil
-// }
+	return event, nil
+}
 
 // // ----------------------------
 // // Handler용 고수준 함수 (일별/Plan 전용)
@@ -169,65 +135,6 @@ func (s *CalendarService) GetMyCalendarEventsByDate(ctx context.Context, userID 
 	// GraphQL 모델 변환
 	return mapper.ToCalendarGraphQLList(calendars), nil
 }
-
-// // 다른 사람 일일 계획 조회 (일별, Event + Todo 포함, PlanHandler에서 호출)
-// func (s *CalendarService) GetUserCalendarDailyData(ctx context.Context, nickname string, authID uuid.UUID, date time.Time) (map[string]interface{}, error) {
-// 	logger.Infof("[GetUserCalendarDailyData] nickname=%s, authUUID=%s, date=%s", nickname, authID, date.Format("2006-01-02"))
-
-// 	// 1. 사용자 UUID 조회 및 Visibility 결정
-// 	UserID, err := s.ProfilesRepo.GetUserIDByNickname(ctx, nickname)
-// 	if err != nil {
-// 		logger.Errorf("[GetUserCalendarDailyData] failed to get user UUID: %v", err)
-// 		return nil, err
-// 	}
-
-// 	visibility := []string{"public"}
-// 	if authID != uuid.Nil && authID != UserID {
-// 		isFollow, _ := s.FollowsRepo.IsFollow(ctx, authID, UserID)
-// 		if isFollow {
-// 			visibility = append(visibility, "friends")
-// 		}
-// 	} else if authID == UserID {
-// 		visibility = append(visibility, "friends", "private")
-// 	}
-
-// 	// 2. 조회 범위 설정
-// 	startDate := time.Date(date.Year(), date.Month(), date.Day(), 0, 0, 0, 0, time.UTC)
-// 	endDate := startDate.AddDate(0, 0, 1)
-
-// 	// 3. Event와 Todo를 모두 포함하여 DB에서 조회
-// 	calendars, err := s.CalendarEventsRepo.FindCalendarsWithTodos(ctx, UserID, visibility, startDate, endDate)
-// 	if err != nil {
-// 		return nil, err
-// 	}
-
-// 	completionData := s.CalculateCompletionData(calendars)
-
-// 	return map[string]interface{}{
-// 		"dailyPlans":     ToDTOList(calendars),
-// 		"completionData": completionData,
-// 	}, nil
-// }
-
-// // ----------------------------
-// // Todo 상태 업데이트 (새로 추가)
-// // ----------------------------
-
-// func (s *CalendarService) UpdateTodoStatus(ctx context.Context, userID uuid.UUID, todoID uuid.UUID, isDone bool) error {
-// 	logger.Infof("[UpdateTodoStatus] UserID=%s, TodoID=%s, IsDone=%t", userID, todoID, isDone)
-
-// 	// 1. Todo 상태 업데이트 및 소유권 확인
-// 	err := s.TodosRepo.UpdateTodoStatus(ctx, todoID, isDone)
-// 	if err != nil {
-// 		return err
-// 	}
-// 	logger.Infof("[UpdateTodoStatus] Finished successfully: TodoID=%s", todoID)
-// 	return nil
-// }
-
-// // ----------------------------
-// // 기본 조회 함수 (캐시 활용)
-// // ----------------------------
 
 // GetEventsWithoutTodos: 월별 캘린더 뷰를 위해 Todo가 없는 Event만 조회하고 캐시 사용
 func (s *CalendarService) GetEventsWithoutTodos(ctx context.Context, UserID uuid.UUID, visibilityLevels []string, startDate, endDate time.Time) ([]*models.CalendarEvent, error) {
@@ -318,65 +225,44 @@ func (s *CalendarService) UpdateCalendarEvent(
 	ctx context.Context,
 	userID uuid.UUID,
 	eventID uuid.UUID,
-	req *dto.CalendarUpdateRequest,
-) error {
-	// 트랜잭션 시작
-	txDB, newCtx, err := tx.BeginTx(ctx, s.DB)
+	input model.UpdateCalendarInput,
+) (*models.CalendarEvent, error) {
+
+	event, err := s.CalendarEventsRepo.GetEventWithTodosByID(ctx, eventID)
 	if err != nil {
-		logger.Errorf("[UpdateCalendar] failed to start transaction: %v", err)
-		return errors.New("failed to start transaction")
+		return nil, errors.New("event not found")
 	}
-	defer func() {
-		if r := recover(); r != nil {
-			txDB.Rollback()
-			panic(r)
+
+	if event.UserID != userID {
+		return nil, errors.New("forbidden")
+	}
+
+	req := dto.CalendarUpdateRequest{
+		Title:       input.Title,
+		Emoji:       input.Emoji,
+		Description: input.Description,
+		StartAt:     input.StartAt,
+		EndAt:       input.EndAt,
+		Visibility:  (*string)(input.Visibility),
+	}
+
+	if input.Todos != nil {
+		req.Todos = make([]dto.TodoUpdateRequest, 0, len(input.Todos))
+		for _, t := range input.Todos {
+			req.Todos = append(req.Todos, dto.TodoUpdateRequest{
+				Content: t.Content,
+				IsDone:  t.IsDone,
+			})
 		}
-	}()
-
-	ctx = newCtx
-
-	// 이벤트 조회 (FOR UPDATE 느낌의 일관성)
-	cal, err := s.CalendarEventsRepo.FindByID(ctx, eventID)
-	if err != nil {
-		txDB.Rollback()
-		return err
-	}
-	if cal == nil {
-		txDB.Rollback()
-		return fmt.Errorf("calendar event not found")
 	}
 
-	// 권한 체크
-	if cal.UserID != userID {
-		txDB.Rollback()
-		return fmt.Errorf("unauthorized")
+	dto.UpdateCalendarModelFromRequest(event, &req)
+
+	if err := s.CalendarEventsRepo.Update(ctx, event); err != nil {
+		return nil, err
 	}
 
-	// 요청 → 모델 반영
-	dto.UpdateCalendarModelFromRequest(cal, req)
-
-	// 이벤트 + Todos 업데이트
-	if err := s.CalendarEventsRepo.UpdateCalendarEvent(ctx, cal); err != nil {
-		txDB.Rollback()
-		return err
-	}
-
-	// (선택) 캐시 무효화, 후처리
-	// ClearCalendarCache(userID, cal.StartAt)
-
-	// 커밋
-	if err := txDB.Commit().Error; err != nil {
-		logger.Errorf("[UpdateCalendar] commit failed: %v", err)
-		return errors.New("failed to commit transaction")
-	}
-
-	logger.Infof(
-		"[UpdateCalendar] success user=%s eventID=%s",
-		userID,
-		eventID,
-	)
-
-	return nil
+	return event, nil
 }
 
 func (s *CalendarService) DeleteCalendarEvent(ctx context.Context, UserID uuid.UUID, eventID uuid.UUID) error {
@@ -425,35 +311,3 @@ weekLoop:
 
 	return monthData
 }
-
-// // CalculateCompletionData: 월별 조회에서는 사용되지 않지만, 일별 조회에서 사용됩니다.
-// func (s *CalendarService) CalculateCompletionData(calendars []*models.CalendarEvents) map[int]int {
-// 	completion := make(map[int]int)
-// 	for _, cal := range calendars {
-// 		day := cal.StartAt.Day()
-// 		totalTodos := len(cal.Todos)
-// 		if totalTodos == 0 {
-// 			completion[day] = 100
-// 			continue
-// 		}
-// 		doneCount := 0
-// 		for _, t := range cal.Todos {
-// 			if t.IsDone {
-// 				doneCount++
-// 			}
-// 		}
-// 		completion[day] = doneCount * 100 / totalTodos
-// 	}
-// 	return completion
-// }
-
-// // ----------------------------
-// // DTO 변환 헬퍼
-// // ----------------------------
-
-// // 전체 캐시 초기화
-// func ClearCache(UserID uuid.UUID, year, month int) {
-// 	for _, vis := range []string{"public", "friends", "private"} {
-// 		DeleteCalendarCache(UserID, year, month, vis)
-// 	}
-// }

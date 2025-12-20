@@ -43,37 +43,59 @@ func (r *mutationResolver) CreateCalendarEvent(ctx context.Context, input model.
 }
 
 // UpdateCalendarEvent is the resolver for the updateCalendarEvent field.
-func (r *mutationResolver) UpdateCalendarEvent(ctx context.Context, eventID string, input model.UpdateCalendarInput) (*model.Calendar, error) {
-	panic(fmt.Errorf("not implemented: UpdateCalendarEvent - updateCalendarEvent"))
+func (r *mutationResolver) UpdateCalendarEvent(
+	ctx context.Context,
+	eventID string,
+	input model.UpdateCalendarInput,
+) (*model.Calendar, error) {
+
+	token, err := middleware.ExtractAccessToken(ctx)
+	if err != nil {
+		return nil, errors.New("unauthorized")
+	}
+
+	userID, err := utils.GetUserID(token)
+	if err != nil {
+		return nil, errors.New("unauthorized")
+	}
+
+	eventUUID, err := uuid.Parse(eventID)
+	if err != nil {
+		return nil, errors.New("invalid event id")
+	}
+
+	event, err := r.CalendarService.UpdateCalendarEvent(
+		ctx,
+		userID,
+		eventUUID,
+		input,
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	return mapper.ToCalendarGraphQL(event), nil
 }
 
 // DeleteCalendarEvent is the resolver for the deleteCalendarEvent field.
-func (r *mutationResolver) DeleteCalendarEvent(
-	ctx context.Context,
-	eventID string,
-) (bool, error) {
-
-	// 1. 토큰 추출
+func (r *mutationResolver) DeleteCalendarEvent(ctx context.Context, eventID string) (bool, error) {
 	token, err := middleware.ExtractAccessToken(ctx)
 	if err != nil {
 		return false, errors.New("unauthorized")
 	}
 
-	// 2. 사용자 ID 추출
 	userID, err := utils.GetUserID(token)
 	if err != nil {
 		logger.Warnf("invalid token")
 		return false, errors.New("unauthorized")
 	}
 
-	// 3. eventID string → uuid.UUID 변환 ⭐
 	eventUUID, err := uuid.Parse(eventID)
 	if err != nil {
 		logger.Warnf("invalid eventID: %s", eventID)
 		return false, errors.New("invalid event id")
 	}
 
-	// 4. 서비스 호출
 	if err := r.CalendarService.DeleteCalendarEvent(ctx, userID, eventUUID); err != nil {
 		return false, err
 	}
@@ -111,8 +133,42 @@ func (r *queryResolver) MyCalendarEvents(ctx context.Context, year int32, month 
 }
 
 // MyCalendarEvent is the resolver for the myCalendarEvent field.
-func (r *queryResolver) MyCalendarEvent(ctx context.Context, eventID string) (*model.Calendar, error) {
-	panic(fmt.Errorf("not implemented: MyCalendarEvent - myCalendarEvent"))
+func (r *queryResolver) MyCalendarEvent(
+	ctx context.Context,
+	eventID string,
+) (*model.Calendar, error) {
+
+	logger.Infof("MyCalendarEvent start eventID=%s", eventID)
+	defer logger.Infof("MyCalendarEvent end eventID=%s", eventID)
+
+	token, err := middleware.ExtractAccessToken(ctx)
+	if err != nil {
+		return nil, errors.New("unauthorized")
+	}
+
+	userID, err := utils.GetUserID(token)
+	if err != nil {
+		logger.Warnf("invalid token")
+		return nil, errors.New("unauthorized")
+	}
+
+	eventUUID, err := uuid.Parse(eventID)
+	if err != nil {
+		logger.Warnf("invalid eventID: %s", eventID)
+		return nil, errors.New("invalid event id")
+	}
+
+	event, err := r.CalendarService.GetEventDetailWithTodosByID(
+		ctx,
+		userID,
+		eventUUID,
+	)
+	if err != nil {
+		logger.Errorf("GetEventDetailWithTodosByID failed: %v", err)
+		return nil, err
+	}
+
+	return mapper.ToCalendarGraphQL(event), nil
 }
 
 // MyCalendarEventsByDate is the resolver for the myCalendarEventsByDate field.
@@ -120,20 +176,17 @@ func (r *queryResolver) MyCalendarEventsByDate(ctx context.Context, date time.Ti
 	logger.Infof("MyCalendarEventsByDate start date=%s", date.Format(time.RFC3339))
 	defer logger.Infof("MyCalendarEventsByDate end date=%s", date.Format(time.RFC3339))
 
-	// 1. 토큰 추출
 	token, err := middleware.ExtractAccessToken(ctx)
 	if err != nil {
 		return nil, errors.New("unauthorized")
 	}
 
-	// 2. 유저 ID 추출
 	userID, err := utils.GetUserID(token)
 	if err != nil {
 		logger.Warnf("invalid token")
 		return nil, errors.New("unauthorized")
 	}
 
-	// 3. 서비스 호출: 해당 날짜의 일정 가져오기
 	events, err := r.CalendarService.GetMyCalendarEventsByDate(
 		ctx,
 		userID,
@@ -144,7 +197,6 @@ func (r *queryResolver) MyCalendarEventsByDate(ctx context.Context, date time.Ti
 		return nil, errors.New("failed to get calendar events")
 	}
 
-	// 4. GraphQL 타입으로 변환
 	return events, nil
 }
 
