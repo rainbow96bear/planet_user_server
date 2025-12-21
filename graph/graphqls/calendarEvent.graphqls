@@ -2,23 +2,23 @@
 # Query
 # ------------------------------------
 extend type Query {
-  # 로그인한 사용자의 월별 일정 조회
+  # 로그인한 사용자 월별 일정 (Todo 없음)
   myCalendarEvents(
     year: Int!
     month: Int!
   ): [Calendar!]!
 
-  # 로그인한 사용자의 단건 일정 조회 (eventId 기준)
+  # 로그인한 사용자 단건 일정 (Todo 포함)
   myCalendarEvent(
     eventId: ID!
   ): Calendar!
 
-  # 로그인한 사용자의 특정 날짜 일정 조회 (추가)
+  # 로그인한 사용자 일별 일정 (Todo 포함)
   myCalendarEventsByDate(
     date: Time!
   ): [Calendar!]!
 
-  # 특정 사용자의 월별 일정 조회 (public / friends)
+  # 다른 사용자 월별 일정 (public / friends)
   userCalendarEvents(
     userId: ID!
     year: Int!
@@ -55,9 +55,18 @@ type Calendar {
   startAt: Time!
   endAt: Time!
   visibility: CalendarVisibility!
-  todos: [Todo!]!
+  todos: [Todo!]
   createdAt: Time!
   updatedAt: Time!
+}
+
+# ------------------------------------
+# Enums
+# ------------------------------------
+enum CalendarVisibility {
+  public
+  friends
+  private
 }
 
 # ------------------------------------
@@ -93,11 +102,7 @@ input UpdateTodoInput {
   isDone: Boolean
 }
 
-# ------------------------------------
-# Enums
-# ------------------------------------
-enum CalendarVisibility {
-  public
-  friends
-  private
+input CalendarEventFilter {
+  from: Time!
+  to: Time!
 }

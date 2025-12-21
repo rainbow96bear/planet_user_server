@@ -32,7 +32,7 @@ type ProfileService struct {
 func NewProfileService(
 	db *gorm.DB,
 	profilesRepo *repository.ProfileRepository,
-) ProfileServiceInterface {
+) *ProfileService {
 	return &ProfileService{
 		db:           db,
 		ProfilesRepo: profilesRepo,

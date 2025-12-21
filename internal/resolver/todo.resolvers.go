@@ -85,6 +85,7 @@ func (r *todoResolver) ID(ctx context.Context, obj *models.Todo) (string, error)
 	return obj.ID.String(), nil
 }
 
+// CalendarEventID is the resolver for the calendarEventId field.
 func (r *todoResolver) CalendarEventID(ctx context.Context, obj *models.Todo) (*string, error) {
 	if obj == nil {
 		return nil, nil

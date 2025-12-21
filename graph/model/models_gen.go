@@ -20,9 +20,14 @@ type Calendar struct {
 	StartAt     time.Time          `json:"startAt"`
 	EndAt       time.Time          `json:"endAt"`
 	Visibility  CalendarVisibility `json:"visibility"`
-	Todos       []*models.Todo     `json:"todos"`
+	Todos       []*models.Todo     `json:"todos,omitempty"`
 	CreatedAt   time.Time          `json:"createdAt"`
 	UpdatedAt   time.Time          `json:"updatedAt"`
+}
+
+type CalendarEventFilter struct {
+	From time.Time `json:"from"`
+	To   time.Time `json:"to"`
 }
 
 type CreateCalendarInput struct {

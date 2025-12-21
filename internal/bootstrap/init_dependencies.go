@@ -28,6 +28,7 @@ func InitDependencies(db *gorm.DB) (*Dependencies, error) {
 	profileRepo := repository.NewProfilesRepository(db)
 	calendarRepo := repository.NewCalendarEventsRepository(db)
 	todoRepo := repository.NewTodosRepository(db)
+	followRepo := repository.NewFollowsRepository(db)
 
 	// --- 2. gRPC Clients 초기화 ---
 	grpcClients, err := grpcclient.NewGrpcClients()
@@ -38,8 +39,8 @@ func InitDependencies(db *gorm.DB) (*Dependencies, error) {
 	// --- 3. Service 초기화 ---
 	profileService := service.NewProfileService(db, profileRepo)
 	calendarService := service.NewCalendarService(db,
-		profileRepo,
 		calendarRepo,
+		followRepo,
 		// todoRepo,
 	)
 	todoService := service.NewTodoService(db,

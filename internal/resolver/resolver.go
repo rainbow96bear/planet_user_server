@@ -8,15 +8,15 @@ import "github.com/rainbow96bear/planet_user_server/internal/service"
 // here.
 
 type Resolver struct {
-	ProfileService  service.ProfileServiceInterface
-	CalendarService service.CalendarServiceInterface
-	TodoService     service.TodoServiceInterface
+	ProfileService  *service.ProfileService
+	CalendarService *service.CalendarService
+	TodoService     *service.TodoService
 }
 
 func NewResolver(
-	profileSvc service.ProfileServiceInterface,
-	calendarSvc service.CalendarServiceInterface,
-	todoSvc service.TodoServiceInterface,
+	profileSvc *service.ProfileService,
+	calendarSvc *service.CalendarService,
+	todoSvc *service.TodoService,
 ) *Resolver {
 	return &Resolver{
 		ProfileService:  profileSvc,
