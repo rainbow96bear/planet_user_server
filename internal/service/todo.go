@@ -3,97 +3,73 @@ package service
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/google/uuid"
+	"github.com/rainbow96bear/planet_user_server/internal/grpc/client"
 	"github.com/rainbow96bear/planet_user_server/internal/models"
 	"github.com/rainbow96bear/planet_user_server/internal/repository"
+	"github.com/rainbow96bear/planet_utils/pb"
 	"github.com/rainbow96bear/planet_utils/pkg/logger"
 	"gorm.io/gorm"
 )
 
-// TodoService: Todo 항목 관리를 전담합니다.
 type TodoServiceInterface interface {
-	UpdateTodoStatus(
-		ctx context.Context,
-		userID uuid.UUID,
-		todoID uuid.UUID,
-		isDone bool,
-	) (*models.Todo, error)
-	FindByID(
-		ctx context.Context,
-		userID uuid.UUID,
-		todoID uuid.UUID,
-	) (*models.Todo, error)
+	UpdateTodoStatus(ctx context.Context, userID uuid.UUID, todoID uuid.UUID, isDone bool) (*models.Todo, error)
+	FindByID(ctx context.Context, userID uuid.UUID, todoID uuid.UUID) (*models.Todo, error)
 }
 
 type TodoService struct {
-	db *gorm.DB
-	// CalendarEventsRepo를 통해 Todo 테이블에 접근합니다.
+	db        *gorm.DB
 	TodosRepo *repository.TodosRepository
+	Analytics *client.AnalyticsClient
 }
 
-// NewTodoService: TodoService를 생성합니다.
-func NewTodoService(db *gorm.DB, todosRepo *repository.TodosRepository) *TodoService {
+func NewTodoService(db *gorm.DB, todosRepo *repository.TodosRepository, analytics *client.AnalyticsClient) *TodoService {
 	return &TodoService{
 		db:        db,
 		TodosRepo: todosRepo,
+		Analytics: analytics,
 	}
 }
 
-// // ----------------------------
-// // Todo 상태 업데이트
-// // ----------------------------
-
-// UpdateTodoStatus: 특정 Todo 항목의 isDone 상태를 업데이트하고, 관련된 Event 캐시를 무효화합니다.
-// 💡 이 함수는 Handler에서 직접 호출됩니다.
-func (s *TodoService) UpdateTodoStatus(
-	ctx context.Context,
-	userID uuid.UUID,
-	todoID uuid.UUID,
-	isDone bool,
-) (*models.Todo, error) {
-
-	logger.Infof(
-		"[TodoService.UpdateTodoStatus] user=%s todo=%s done=%t",
-		userID, todoID, isDone,
-	)
-
-	// Repository에서 권한 검증 + 업데이트 + 반환까지
-	todo, err := s.TodosRepo.UpdateTodoStatus(
-		ctx,
-		userID,
-		todoID,
-		isDone,
-	)
+// UpdateTodoStatus
+func (s *TodoService) UpdateTodoStatus(ctx context.Context, userID uuid.UUID, todoID uuid.UUID, isDone bool) (*models.Todo, error) {
+	todo, err := s.TodosRepo.UpdateTodoStatus(ctx, userID, todoID, isDone)
 	if err != nil {
+		logger.Warnf("todo update failed user=%s todo=%s done=%t err=%v", userID, todoID, isDone, err)
 		return nil, err
+	}
+
+	logger.Infof("todo status changed user=%s todo=%s done=%t", userID, todoID, isDone)
+
+	// AnalyticsEvent 직접 호출
+	if s.Analytics != nil {
+		event := &pb.PublishEventRequest{
+			EventName:  "todo_completed",
+			UserId:     userID.String(),
+			OccurredAt: time.Now().Unix(),
+			Properties: map[string]string{"todo_id": todoID.String()},
+		}
+		if !isDone {
+			event.EventName = "todo_uncompleted"
+		}
+		s.Analytics.PublishEvent(ctx, event)
 	}
 
 	return todo, nil
 }
 
-// // ----------------------------
-// // (추가 예정) 기타 Todo 관련 CRUD (예: Todo 개별 생성/수정/삭제)
-// // ----------------------------
-// // func (s *TodoService) DeleteTodo(ctx context.Context, userID uuid.UUID, todoID uuid.UUID) error { ... }
-func (s *TodoService) FindByID(
-	ctx context.Context,
-	userID uuid.UUID,
-	todoID uuid.UUID,
-) (*models.Todo, error) {
-
-	logger.Infof(
-		"[TodoService.FindByID] UserID=%s TodoID=%s",
-		userID, todoID,
-	)
-
+// FindByID
+func (s *TodoService) FindByID(ctx context.Context, userID uuid.UUID, todoID uuid.UUID) (*models.Todo, error) {
 	todo, err := s.TodosRepo.FindByID(ctx, todoID)
 	if err != nil {
+		logger.Warnf("todo find failed user=%s todo=%s err=%v", userID, todoID, err)
 		return nil, err
 	}
 	if todo == nil {
+		logger.Infof("todo not found user=%s todo=%s", userID, todoID)
 		return nil, fmt.Errorf("todo not found")
 	}
-
 	return todo, nil
 }

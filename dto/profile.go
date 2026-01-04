@@ -45,7 +45,7 @@ type UserProfile struct {
 	FollowingCount int32     `json:"following_count"`
 }
 
-func FromGrpcCreateUserRequest(req *pb.CreateUserRequest) (CreateProfileRequest, error) {
+func FromGrpcCreateUserRequest(req *pb.CreateProfileRequest) (CreateProfileRequest, error) {
 	profileImage := ""
 	if req.ProfileImage != nil {
 		profileImage = *req.ProfileImage

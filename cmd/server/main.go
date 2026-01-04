@@ -72,7 +72,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	go grpcserver.RunGrpcServer(db, dependencies)
+	go grpcserver.RunGrpcServer(dependencies)
 
 	// ----------------------------------------------------------------------
 	// HTTP/GraphQL 서버 실행 (Gin)

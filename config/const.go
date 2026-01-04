@@ -4,7 +4,8 @@ var (
 	PORT           string
 	USER_GRPC_PORT string
 
-	AUTH_GRPC_SERVER_ADDR string
+	AUTH_GRPC_SERVER_ADDR      string
+	ANALYTICS_GRPC_SERVER_ADDR string
 
 	LOG_LEVEL           int16
 	DB_GRPC_SERVER_ADDR string
