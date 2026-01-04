@@ -33,17 +33,6 @@ func (r *TodosRepository) getDB(ctx context.Context) *gorm.DB {
 	return r.db.WithContext(ctx) // 기본 DB 연결 반환
 }
 
-// func (r *TodosRepository) BeginTx(ctx context.Context) (*gorm.DB, error) {
-// 	logger.Infof("starting transaction for TodosRepository")
-// 	tx := r.DB.WithContext(ctx).Begin()
-// 	if tx.Error != nil {
-// 		logger.Errorf("failed to start transaction: %v", tx.Error)
-// 		return nil, tx.Error
-// 	}
-// 	logger.Infof("transaction started successfully")
-// 	return tx, nil
-// }
-
 // -------------------------
 // 단일 Todo 생성
 // -------------------------
@@ -137,26 +126,3 @@ func (r *TodosRepository) FindByID(
 
 	return &todo, nil
 }
-
-// // -------------------------
-// // EventID 기반 Todo 조회
-// // -------------------------
-// func (r *TodosRepository) FindTodosByEventID(ctx context.Context, eventID uuid.UUID) ([]*models.Todos, error) {
-// 	var todos []*models.Todos
-// 	if err := r.DB.WithContext(ctx).Where("event_id = ?", eventID).Find(&todos).Error; err != nil {
-// 		return nil, fmt.Errorf("failed to fetch todos: %w", err)
-// 	}
-// 	logger.Infof("Found %d todos for event %s", len(todos), eventID)
-// 	return todos, nil
-// }
-
-// // -------------------------
-// // 단일 Todo 삭제
-// // -------------------------
-// func (r *TodosRepository) DeleteTodo(ctx context.Context, todoID uuid.UUID) error {
-// 	if err := r.DB.WithContext(ctx).Delete(&models.Todos{}, "id = ?", todoID).Error; err != nil {
-// 		return fmt.Errorf("failed to delete todo: %w", err)
-// 	}
-// 	logger.Infof("Todo %s deleted", todoID)
-// 	return nil
-// }

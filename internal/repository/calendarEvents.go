@@ -132,23 +132,60 @@ func (r *CalendarEventsRepository) Update(
 
 	return db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 
-		// 🔹 CalendarEvent 업데이트
+		// CalendarEvent 업데이트
 		if err := tx.Save(event).Error; err != nil {
 			return err
 		}
 
-		// 🔹 기존 Todos 전체 삭제
+		// 기존 Todos 조회
+		var existingTodos []models.Todo
 		if err := tx.
 			Where("calendar_event_id = ?", event.ID).
-			Delete(&models.Todo{}).
+			Find(&existingTodos).
 			Error; err != nil {
 			return err
 		}
 
-		// 🔹 새 Todos 삽입
-		if len(event.Todos) > 0 {
-			if err := tx.Create(&event.Todos).Error; err != nil {
+		// 기존 Todo를 map으로 구성
+		existingMap := make(map[string]models.Todo)
+		for _, todo := range existingTodos {
+			existingMap[todo.ID.String()] = todo
+		}
+
+		logger.Debugf("todos : [%+v]", event.Todos)
+		// 클라이언트에서 온 Todo 처리
+		seen := make(map[string]bool)
+
+		for _, todo := range event.Todos {
+
+			// 신규 Todo
+			if todo.ID == uuid.Nil {
+				todo.CalendarEventID = event.ID
+				if err := tx.Create(&todo).Error; err != nil {
+					return err
+				}
+				continue
+			}
+
+			// 기존 Todo → UPDATE
+			if err := tx.Model(&models.Todo{}).
+				Where("id = ?", todo.ID).
+				Updates(map[string]interface{}{
+					"content": todo.Content,
+					"is_done": todo.IsDone,
+				}).Error; err != nil {
 				return err
+			}
+
+			seen[todo.ID.String()] = true
+		}
+
+		// 클라이언트에 없는 기존 Todo 삭제
+		for _, todo := range existingTodos {
+			if !seen[todo.ID.String()] {
+				if err := tx.Delete(&models.Todo{}, "id = ?", todo.ID).Error; err != nil {
+					return err
+				}
 			}
 		}
 
